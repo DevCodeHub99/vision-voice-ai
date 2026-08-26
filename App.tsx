@@ -1,4 +1,3 @@
-
 import { FC, useState, useRef, useEffect, useCallback } from 'react';
 import { Task, UserSettings } from './types';
 import { LANGUAGES } from './constants';
@@ -13,7 +12,7 @@ import { useSpeech } from './hooks/useSpeech';
 import { useImageProcessing } from './hooks/useImageProcessing';
 import { useHaptics } from './hooks/useHaptics';
 import { useCamera } from './hooks/useCamera';
-
+import { useVoiceCommands } from './hooks/useVoiceCommands';
 
 // Helper to convert file to base64
 const fileToBase64 = (file: File): Promise<{ data: string; mimeType: string }> => {
@@ -34,10 +33,11 @@ const fileToBase64 = (file: File): Promise<{ data: string; mimeType: string }> =
  * visionvoice Main Component
  * 
  * Orchestrates the overall application flow:
- *- Language and task (Describe/Read) selection
- *- Camera capture and image upload management
- *- AI processing lifecycle management
- *- Speech-to-text (TTS), Haptics, and UI feedback
+ * - Language and task (Describe/Read) selection
+ * - Camera capture and image upload management
+ * - AI processing lifecycle management
+ * - Speech-to-text (TTS), Haptics, and UI feedback
+ * - Hands-free voice commands recognition
  */
 const App: FC = () => {
     const [task, setTask] = useState<Task>(Task.DESCRIBE);
@@ -90,10 +90,56 @@ const App: FC = () => {
             triggerHaptic(); // Success vibration
             speak(result, language);
         }, [triggerHaptic, speak, language]),
-        onError: useCallback((err) => {
+        onError: useCallback(() => {
             triggerHaptic([100, 50, 100]);
             speakAnnouncement("An error occurred. Please try again.");
         }, [triggerHaptic, speakAnnouncement])
+    });
+
+    // Voice Command Handlers
+    const handleVoiceDescribe = useCallback(() => {
+        setTask(Task.DESCRIBE);
+        setActiveTab('camera');
+        speakAnnouncement("Describe mode.");
+    }, [speakAnnouncement]);
+
+    const handleVoiceReadText = useCallback(() => {
+        setTask(Task.READ);
+        setActiveTab('camera');
+        speakAnnouncement("Read text mode.");
+    }, [speakAnnouncement]);
+
+    const handleVoiceCapture = useCallback(() => {
+        speakAnnouncement("Capturing.");
+        triggerHaptic();
+        onCaptureClick();
+    }, [speakAnnouncement, triggerHaptic, onCaptureClick]);
+
+    const handleVoiceStop = useCallback(() => {
+        stopSpeech();
+    }, [stopSpeech]);
+
+    const handleVoiceRepeat = useCallback(() => {
+        if (output) {
+            speak(output, language);
+        } else {
+            speakAnnouncement("No description available to repeat.");
+        }
+    }, [output, speak, language, speakAnnouncement]);
+
+    const {
+        isListening: isVoiceListening,
+        isSupported: isVoiceSupported,
+        toggleListening: handleToggleVoice
+    } = useVoiceCommands({
+        onDescribe: handleVoiceDescribe,
+        onReadText: handleVoiceReadText,
+        onCapture: handleVoiceCapture,
+        onStop: handleVoiceStop,
+        onRepeat: handleVoiceRepeat,
+        speakAnnouncement,
+        triggerHaptic,
+        language
     });
 
     // Initial Voice Hint
@@ -120,7 +166,7 @@ const App: FC = () => {
             try {
                 const { data, mimeType } = await fileToBase64(file);
                 processImage(`data:${mimeType};base64,${data}`, mimeType, task);
-            } catch (err) {
+            } catch {
                 speakAnnouncement("Failed to upload image.");
             }
         }
@@ -131,7 +177,7 @@ const App: FC = () => {
      * Handles image capture from the live camera stream.
      */
     const handleCameraCapture = useCallback((imageDataUrl: string) => {
-        const [header, data] = imageDataUrl.split(',');
+        const [header] = imageDataUrl.split(',');
         const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
         processImage(imageDataUrl, mimeType, task);
     }, [processImage, task]);
@@ -227,6 +273,9 @@ const App: FC = () => {
                     userSettings={userSettings}
                     onLanguageChange={handleLanguageChange}
                     onSettingsClick={handleOpenSettings}
+                    isVoiceSupported={isVoiceSupported}
+                    isVoiceListening={isVoiceListening}
+                    onToggleVoice={handleToggleVoice}
                 />
 
                 {/* Center Content Area */}

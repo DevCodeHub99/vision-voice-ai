@@ -6,7 +6,8 @@ interface UseSpeechProps {
 
 /**
  * Custom hook to manage Text-to-Speech (TTS) functionality.
- * Provides methods for results reading and situational announcements.
+ * Provides methods for results reading and situational announcements with
+ * keep-alive heartbeat support for mobile browsers (iOS Safari / Android Chrome).
  * 
  * @param props - Configuration properties.
  * @param props.language - The current BCP 47 language code for synthesized speech.
@@ -15,34 +16,66 @@ export const useSpeech = ({ language }: UseSpeechProps) => {
     const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+    const keepAliveTimerRef = useRef<number | null>(null);
+
+    const stopKeepAlive = useCallback(() => {
+        if (keepAliveTimerRef.current !== null) {
+            clearInterval(keepAliveTimerRef.current);
+            keepAliveTimerRef.current = null;
+        }
+    }, []);
+
+    const startKeepAlive = useCallback(() => {
+        stopKeepAlive();
+        keepAliveTimerRef.current = window.setInterval(() => {
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
+                if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+                    window.speechSynthesis.pause();
+                    window.speechSynthesis.resume();
+                }
+            }
+        }, 10000);
+    }, [stopKeepAlive]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
         const updateVoices = () => {
             const availableVoices = window.speechSynthesis.getVoices();
-            setVoices(availableVoices);
+            if (availableVoices.length > 0) {
+                setVoices(availableVoices);
+            }
         };
 
         updateVoices();
         if (window.speechSynthesis.onvoiceschanged !== undefined) {
             window.speechSynthesis.onvoiceschanged = updateVoices;
         }
+
+        // Retry once after a brief delay for browsers that load voices asynchronously
+        const timer = setTimeout(updateVoices, 300);
+
+        return () => {
+            clearTimeout(timer);
+        };
     }, []);
 
     const speakAnnouncement = useCallback((text: string) => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }
-    }, []);
+        if (typeof window === 'undefined' || !window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        stopKeepAlive();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utteranceRef.current = utterance;
+        window.speechSynthesis.speak(utterance);
+    }, [stopKeepAlive]);
 
     const speak = useCallback((text: string, lang: string) => {
         if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
         window.speechSynthesis.cancel();
+        stopKeepAlive();
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = lang;
@@ -55,45 +88,60 @@ export const useSpeech = ({ language }: UseSpeechProps) => {
             utterance.voice = matchedVoice;
         }
 
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        utterance.onerror = () => setIsSpeaking(false);
-        utteranceRef.current = utterance;
+        utterance.onstart = () => {
+            setIsSpeaking(true);
+            startKeepAlive();
+        };
+        utterance.onend = () => {
+            setIsSpeaking(false);
+            stopKeepAlive();
+            utteranceRef.current = null;
+        };
+        utterance.onerror = () => {
+            setIsSpeaking(false);
+            stopKeepAlive();
+            utteranceRef.current = null;
+        };
 
+        utteranceRef.current = utterance;
         window.speechSynthesis.speak(utterance);
-    }, [voices]);
+    }, [voices, startKeepAlive, stopKeepAlive]);
 
     const toggleSpeech = useCallback((text: string) => {
-        if (!window.speechSynthesis) return;
+        if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
         if (isSpeaking) {
             window.speechSynthesis.pause();
             setIsSpeaking(false);
+            stopKeepAlive();
         } else {
             if (window.speechSynthesis.paused) {
                 window.speechSynthesis.resume();
                 setIsSpeaking(true);
+                startKeepAlive();
             } else if (text) {
                 speak(text, language);
             }
         }
-    }, [isSpeaking, speak, language]);
+    }, [isSpeaking, speak, language, startKeepAlive, stopKeepAlive]);
 
     const stopSpeech = useCallback(() => {
-        if (window.speechSynthesis) {
+        if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
             setIsSpeaking(false);
+            stopKeepAlive();
+            utteranceRef.current = null;
         }
-    }, []);
+    }, [stopKeepAlive]);
 
     useEffect(() => {
         return () => {
-            if (window.speechSynthesis) {
+            stopKeepAlive();
+            if (typeof window !== 'undefined' && window.speechSynthesis) {
                 window.speechSynthesis.cancel();
             }
         };
-    }, []);
-
+    }, [stopKeepAlive]);
 
     return {
         isSpeaking,

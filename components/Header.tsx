@@ -1,6 +1,5 @@
-
 import { memo } from 'react';
-import { Task, LanguageOption, UserSettings } from '../types';
+import { LanguageOption, UserSettings } from '../types';
 import { LANGUAGES } from '../constants';
 
 interface HeaderProps {
@@ -8,9 +7,20 @@ interface HeaderProps {
     userSettings?: UserSettings;
     onLanguageChange: (language: string) => void;
     onSettingsClick?: () => void;
+    isVoiceSupported?: boolean;
+    isVoiceListening?: boolean;
+    onToggleVoice?: () => void;
 }
 
-const Header = memo(({ language, userSettings, onLanguageChange, onSettingsClick }: HeaderProps) => {
+const Header = memo(({
+    language,
+    userSettings,
+    onLanguageChange,
+    onSettingsClick,
+    isVoiceSupported = true,
+    isVoiceListening = false,
+    onToggleVoice
+}: HeaderProps) => {
     const provider = userSettings?.provider || 'openrouter';
     const activeKey = provider === 'gemini' ? userSettings?.geminiKey : userSettings?.openRouterKey;
     const hasKey = Boolean(activeKey?.trim());
@@ -33,8 +43,24 @@ const Header = memo(({ language, userSettings, onLanguageChange, onSettingsClick
                 <i className="fa-solid fa-chevron-down text-slate-400 ml-2 text-xs"></i>
             </div>
 
-            {/* Right Controls: Status Pill & Settings Button */}
+            {/* Right Controls: Voice Toggle, Status Pill & Settings Button */}
             <div className="flex items-center space-x-2">
+                {/* Hands-free Voice Commands Button */}
+                {isVoiceSupported && onToggleVoice && (
+                    <button
+                        onClick={onToggleVoice}
+                        className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center border transition-all active:scale-95 shadow-lg ${
+                            isVoiceListening
+                                ? 'bg-red-950/60 border-red-500 text-red-400 animate-pulse ring-2 ring-red-500/40'
+                                : 'bg-black/40 border-white/10 text-slate-300 hover:text-white hover:bg-black/60'
+                        }`}
+                        aria-label={isVoiceListening ? "Voice commands active. Tap to turn off." : "Turn on hands-free voice commands"}
+                        title={isVoiceListening ? "Listening... Tap to stop" : "Voice commands"}
+                    >
+                        <i className={`fa-solid ${isVoiceListening ? 'fa-microphone' : 'fa-microphone-slash'} text-base`}></i>
+                    </button>
+                )}
+
                 <button
                     onClick={onSettingsClick}
                     className={`bg-black/40 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center border transition-all active:scale-95 shadow-lg ${
