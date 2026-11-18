@@ -1,5 +1,6 @@
 
 import { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, memo } from 'react';
+import { calculateTargetDimensions } from '../utils/imageProcessor';
 
 interface CameraCaptureProps {
   onCapture: (imageDataUrl: string) => void;
@@ -82,11 +83,14 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
 
       // Check if video is ready
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const { width, height } = calculateTargetDimensions(video.videoWidth, video.videoHeight);
+        canvas.width = width;
+        canvas.height = height;
         const context = canvas.getContext('2d');
         if (context) {
-          context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = 'high';
+          context.drawImage(video, 0, 0, width, height);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8); // Compress quality to 0.8
           onCapture(dataUrl);
         }
@@ -99,7 +103,7 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
   }));
 
   return (
-    <div className="absolute inset-0 z-0 bg-black overflow-hidden">
+    <div className="absolute inset-0 z-0 bg-black overflow-hidden" role="region" aria-label="Camera view">
       {error ? (
         <div className="flex flex-col items-center justify-center h-full text-center p-6">
           <i className="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
@@ -112,6 +116,7 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
           autoPlay
           playsInline
           muted
+          aria-label="Live camera viewfinder"
           className="w-full h-full object-cover opacity-80"
         />
       )}

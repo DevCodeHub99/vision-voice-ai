@@ -1,0 +1,19 @@
+{
+  "short_name": "VisionVoice",
+  "name": "VisionVoice - Visual Aid for the Visually Impaired",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "description": "Privacy-focused, multilingual visual aid and OCR assistant for the visually impaired powered by AI."
+}

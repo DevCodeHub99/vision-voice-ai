@@ -53,6 +53,17 @@ const SettingsModal = memo(({ isOpen, onClose, settings, onSaveSettings }: Setti
         }
     }, [settings, isOpen]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     if (!isOpen) return null;
 
     const handleProviderChange = (newProvider: AIProvider) => {
@@ -91,7 +102,17 @@ const SettingsModal = memo(({ isOpen, onClose, settings, onSaveSettings }: Setti
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl transition-opacity animate-in fade-in duration-200">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl transition-opacity animate-in fade-in duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-modal-title"
+            onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                    onClose();
+                }
+            }}
+        >
             <div className="bg-slate-950/90 border border-violet-500/20 rounded-3xl shadow-2xl w-[92vw] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-6 space-y-5 text-slate-100 relative">
                 
                 {/* Modal Header */}
@@ -101,7 +122,7 @@ const SettingsModal = memo(({ isOpen, onClose, settings, onSaveSettings }: Setti
                             <i className="fa-solid fa-sliders text-xl"></i>
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-white">AI Settings</h2>
+                            <h2 id="settings-modal-title" className="text-xl font-bold text-white">AI Settings</h2>
                             <p className="text-xs text-slate-400">Multi-Provider BYOK & Model Selection</p>
                         </div>
                     </div>

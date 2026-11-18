@@ -13,21 +13,7 @@ import { useImageProcessing } from './hooks/useImageProcessing';
 import { useHaptics } from './hooks/useHaptics';
 import { useCamera } from './hooks/useCamera';
 import { useVoiceCommands } from './hooks/useVoiceCommands';
-
-// Helper to convert file to base64
-const fileToBase64 = (file: File): Promise<{ data: string; mimeType: string }> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            const result = reader.result as string;
-            const [header, data] = result.split(',');
-            const mimeType = header.match(/:(.*?);/)?.[1] || file.type;
-            resolve({ data, mimeType });
-        };
-        reader.onerror = (error) => reject(error);
-    });
-};
+import { optimizeImage } from './utils/imageProcessor';
 
 /**
  * visionvoice Main Component
@@ -139,7 +125,8 @@ const App: FC = () => {
         onRepeat: handleVoiceRepeat,
         speakAnnouncement,
         triggerHaptic,
-        language
+        language,
+        isSpeaking
     });
 
     // Initial Voice Hint
@@ -164,10 +151,10 @@ const App: FC = () => {
         if (file) {
             triggerHaptic();
             try {
-                const { data, mimeType } = await fileToBase64(file);
-                processImage(`data:${mimeType};base64,${data}`, mimeType, task);
+                const { dataUrl, mimeType } = await optimizeImage(file);
+                processImage(dataUrl, mimeType, task);
             } catch {
-                speakAnnouncement("Failed to upload image.");
+                speakAnnouncement("Failed to process uploaded image.");
             }
         }
     }, [triggerHaptic, processImage, task, speakAnnouncement]);

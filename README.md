@@ -26,6 +26,7 @@ _A modern, privacy-focused, multi-provider visual aid for the visually impaired,
 
 ### 🔐 Multi-Provider BYOK & Hardened Client Security
 - **Multi-Provider AI**: Seamlessly choose between **OpenRouter** (`sk-or-v1-...`) and **Google Gemini AI Studio** (`AIzaSy...`).
+- **Header-Based Authentication**: Google Gemini requests use the official `x-goog-api-key` header, preventing credentials from appearing in URL query parameters.
 - **XOR Salt Key Obfuscation**: API keys stored in `localStorage` are encrypted using XOR salt encoding, preventing plain-text inspection.
 - **In-Memory Session Option**: Option to keep keys strictly in React memory for the active tab session only.
 - **Automated Error Redaction**: Global regex scrubbing masks key signatures (`sk-or-v1-***`, `AIzaSy***`, `key=***`) across all console outputs and UI error sheets.
@@ -64,7 +65,11 @@ VisionVoice/
 │   ├── openRouterService.ts # OpenRouter REST client with timeout & fallback models
 │   └── geminiService.ts     # Zero-dependency Google Gemini REST client
 ├── utils/
+│   ├── imageProcessor.ts    # Client-side image pre-compression & downscaling pipeline
 │   └── security.ts          # XOR key obfuscation, input sanitization & error scrubbing
+├── public/
+│   ├── manifest.json        # Progressive Web App (PWA) standalone configuration
+│   └── icon.svg             # High-contrast accessibility app icon
 ├── constants.ts             # Multilingual prompt templates & language options
 └── types.ts                 # TypeScript interfaces & Enums
 ```

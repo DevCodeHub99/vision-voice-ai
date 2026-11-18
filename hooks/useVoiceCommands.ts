@@ -38,6 +38,110 @@ declare global {
     }
 }
 
+export type VoiceAction = 'describe' | 'read' | 'capture' | 'stop' | 'repeat';
+
+interface CommandKeywords {
+    describe: string[];
+    read: string[];
+    capture: string[];
+    stop: string[];
+    repeat: string[];
+}
+
+// Universal English keywords always recognized as fallback across all languages
+export const UNIVERSAL_KEYWORDS: CommandKeywords = {
+    describe: ['describe', 'scene', 'look', 'what do you see', 'what is this'],
+    read: ['read', 'text', 'ocr', 'words', 'document'],
+    capture: ['capture', 'photo', 'picture', 'snap', 'click', 'take photo'],
+    stop: ['stop', 'quiet', 'silence', 'pause', 'shut up', 'cancel'],
+    repeat: ['repeat', 'again', 'replay', 'read again', 'once more']
+};
+
+export const MULTILINGUAL_KEYWORDS: Record<string, CommandKeywords> = {
+    'hi-IN': {
+        describe: ['विवरण', 'दृश्य', 'क्या है', 'बताओ', 'डिस्क्राइब', 'सामने'],
+        read: ['पढ़ो', 'टेक्स्ट', 'लिखा', 'रीड', 'पढ़'],
+        capture: ['फोटो', 'खींचो', 'क्लिक', 'कैप्चर', 'तस्वीर'],
+        stop: ['रुको', 'रोको', 'चुप', 'शांत', 'बंद'],
+        repeat: ['दोहराओ', 'फिर से', 'दोबारा', 'रिपीट']
+    },
+    'es-ES': {
+        describe: ['describir', 'escena', 'qué hay', 'mira', 'describe'],
+        read: ['leer', 'texto', 'lee'],
+        capture: ['capturar', 'foto', 'disparar', 'captura', 'tomar'],
+        stop: ['parar', 'silencio', 'basta', 'detener', 'alto'],
+        repeat: ['repetir', 'otra vez', 'de nuevo', 'repite']
+    },
+    'fr-FR': {
+        describe: ['décrire', 'scène', "qu'est-ce", 'regarde', 'décris'],
+        read: ['lire', 'texte', 'lecture', 'lis'],
+        capture: ['capturer', 'photo', 'clic', 'prendre', 'capture'],
+        stop: ['arrêter', 'silence', 'stop', 'pause', 'halte'],
+        repeat: ['répéter', 'encore', 'rejouer', 'répète']
+    },
+    'de-DE': {
+        describe: ['beschreiben', 'szene', 'sehen', 'blick', 'beschreibe'],
+        read: ['lesen', 'text', 'vorlesen', 'lies'],
+        capture: ['aufnahme', 'foto', 'knipsen', 'erfassen', 'aufnehmen'],
+        stop: ['stopp', 'ruhe', 'anhalten', 'pause', 'stoppen'],
+        repeat: ['wiederholen', 'nochmal', 'erneut', 'noch einmal']
+    },
+    'ja-JP': {
+        describe: ['説明', '見て', 'シーン', '教えて'],
+        read: ['読んで', 'テキスト', '文字', '読書'],
+        capture: ['撮影', '写真', 'シャッター', '撮って'],
+        stop: ['止めて', 'ストップ', '静かに', '停止'],
+        repeat: ['もう一度', 'リピート', '繰り返して']
+    },
+    'it-IT': {
+        describe: ['descrivere', 'descrivi', 'scena', 'vedi', 'guarda'],
+        read: ['leggere', 'leggi', 'testo'],
+        capture: ['catturare', 'scatta', 'foto', 'cattura'],
+        stop: ['ferma', 'stop', 'silenzio', 'basta'],
+        repeat: ['ripeti', 'ancora', 'di nuovo']
+    },
+    'pt-BR': {
+        describe: ['descrever', 'descreva', 'cena', 'olhe', 'veja'],
+        read: ['ler', 'leia', 'texto'],
+        capture: ['capturar', 'foto', 'tirar', 'captura'],
+        stop: ['parar', 'pare', 'silêncio', 'chega', 'cancela'],
+        repeat: ['repetir', 'repita', 'de novo', 'novamente']
+    }
+};
+
+/**
+ * Pure parsing function to map speech transcripts to voice actions across 8 languages.
+ */
+export const parseVoiceCommand = (transcript: string, language: string = 'en-US'): VoiceAction | null => {
+    if (!transcript) return null;
+    const text = transcript.toLowerCase().trim();
+
+    const langKey = language;
+    const prefix = language.split('-')[0];
+    const localized = MULTILINGUAL_KEYWORDS[langKey] || MULTILINGUAL_KEYWORDS[prefix] || null;
+
+    const matches = (words: string[]) => words.some(w => text.includes(w.toLowerCase()));
+
+    // Priority order: Stop > Capture > Repeat > Describe > Read
+    if (matches(UNIVERSAL_KEYWORDS.stop) || (localized && matches(localized.stop))) {
+        return 'stop';
+    }
+    if (matches(UNIVERSAL_KEYWORDS.capture) || (localized && matches(localized.capture))) {
+        return 'capture';
+    }
+    if (matches(UNIVERSAL_KEYWORDS.repeat) || (localized && matches(localized.repeat))) {
+        return 'repeat';
+    }
+    if (matches(UNIVERSAL_KEYWORDS.describe) || (localized && matches(localized.describe))) {
+        return 'describe';
+    }
+    if (matches(UNIVERSAL_KEYWORDS.read) || (localized && matches(localized.read))) {
+        return 'read';
+    }
+
+    return null;
+};
+
 interface UseVoiceCommandsProps {
     onDescribe: () => void;
     onReadText: () => void;
@@ -47,6 +151,7 @@ interface UseVoiceCommandsProps {
     speakAnnouncement: (text: string) => void;
     triggerHaptic: (pattern?: number | number[]) => void;
     language?: string;
+    isSpeaking?: boolean;
 }
 
 export const useVoiceCommands = ({
@@ -57,13 +162,19 @@ export const useVoiceCommands = ({
     onRepeat,
     speakAnnouncement,
     triggerHaptic,
-    language = 'en-US'
+    language = 'en-US',
+    isSpeaking = false
 }: UseVoiceCommandsProps) => {
     const [isListening, setIsListening] = useState<boolean>(false);
     const [isSupported, setIsSupported] = useState<boolean>(false);
     const [lastCommand, setLastCommand] = useState<string>('');
     const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
     const activeListeningRef = useRef<boolean>(false);
+    const isSpeakingRef = useRef<boolean>(isSpeaking);
+
+    useEffect(() => {
+        isSpeakingRef.current = isSpeaking;
+    }, [isSpeaking]);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -73,45 +184,40 @@ export const useVoiceCommands = ({
     }, []);
 
     const handleCommand = useCallback((transcript: string) => {
-        const text = transcript.toLowerCase().trim();
-        setLastCommand(text);
-
-        // Command: Describe Scene
-        if (text.includes('describe') || text.includes('scene')) {
-            triggerHaptic();
-            onDescribe();
+        // Prevent acoustic feedback loops when the app itself is reading or speaking
+        if (isSpeakingRef.current) {
             return;
         }
 
-        // Command: Read Text (OCR)
-        if (text.includes('read') || text.includes('text')) {
-            triggerHaptic();
-            onReadText();
-            return;
-        }
+        const action = parseVoiceCommand(transcript, language);
+        if (!action) return;
 
-        // Command: Capture Image
-        if (text.includes('capture') || text.includes('photo') || text.includes('picture') || text.includes('snap') || text.includes('click')) {
-            triggerHaptic();
-            onCapture();
-            return;
-        }
+        setLastCommand(transcript.trim());
 
-        // Command: Stop Speech
-        if (text.includes('stop') || text.includes('quiet') || text.includes('silence')) {
-            triggerHaptic();
-            onStop();
-            speakAnnouncement("Speech stopped.");
-            return;
+        switch (action) {
+            case 'describe':
+                triggerHaptic();
+                onDescribe();
+                break;
+            case 'read':
+                triggerHaptic();
+                onReadText();
+                break;
+            case 'capture':
+                triggerHaptic();
+                onCapture();
+                break;
+            case 'stop':
+                triggerHaptic();
+                onStop();
+                speakAnnouncement("Speech stopped.");
+                break;
+            case 'repeat':
+                triggerHaptic();
+                onRepeat();
+                break;
         }
-
-        // Command: Repeat / Replay
-        if (text.includes('repeat') || text.includes('again') || text.includes('replay')) {
-            triggerHaptic();
-            onRepeat();
-            return;
-        }
-    }, [onDescribe, onReadText, onCapture, onStop, onRepeat, triggerHaptic, speakAnnouncement]);
+    }, [language, onDescribe, onReadText, onCapture, onStop, onRepeat, triggerHaptic, speakAnnouncement]);
 
     const stopListening = useCallback(() => {
         activeListeningRef.current = false;
@@ -147,8 +253,12 @@ export const useVoiceCommands = ({
             };
 
             recognition.onresult = (event: SpeechRecognitionEventLike) => {
+                // Drop microphone inputs while the device's TTS is vocalizing to prevent self-triggering
+                if (isSpeakingRef.current) {
+                    return;
+                }
                 const current = event.resultIndex;
-                const transcript = event.results[current][0].transcript;
+                const transcript = event.results[current]?.[0]?.transcript;
                 if (transcript) {
                     handleCommand(transcript);
                 }
@@ -175,7 +285,7 @@ export const useVoiceCommands = ({
             recognitionRef.current = recognition;
             recognition.start();
             triggerHaptic(50);
-            speakAnnouncement("Voice commands active. Say describe, read, or capture.");
+            speakAnnouncement("Voice commands active.");
         } catch {
             setIsListening(false);
             activeListeningRef.current = false;
