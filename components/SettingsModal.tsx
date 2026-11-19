@@ -255,14 +255,26 @@ const SettingsModal = memo(({ isOpen, onClose, settings, onSaveSettings }: Setti
                         ))}
                     </select>
 
+                    {/* Active Model Description / Use Case Helper */}
+                    {activePresetModels.find(m => m.id === selectedModel)?.description && (
+                        <p className="text-xs text-slate-400 pl-1 leading-relaxed">
+                            💡 {activePresetModels.find(m => m.id === selectedModel)?.description}
+                        </p>
+                    )}
+
                     {selectedModel === 'custom' && (
-                        <input
-                            type="text"
-                            value={customModel}
-                            onChange={(e) => setCustomModel(e.target.value)}
-                            placeholder={provider === 'gemini' ? 'e.g. gemini-2.5-flash' : 'e.g. nvidia/nemotron-3.5-super-vl:free'}
-                            className="w-full mt-2 bg-slate-900 border border-white/15 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 font-mono"
-                        />
+                        <div className="space-y-1.5 mt-2">
+                            <input
+                                type="text"
+                                value={customModel}
+                                onChange={(e) => setCustomModel(e.target.value)}
+                                placeholder={provider === 'gemini' ? 'e.g. gemini-2.5-flash' : 'e.g. qwen/qwen2.5-vl-7b-instruct:free'}
+                                className="w-full bg-slate-900 border border-white/15 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 font-mono"
+                            />
+                            <p className="text-[11px] text-amber-400/90 pl-1">
+                                ⚠️ Model must accept image/vision inputs. Use IDs ending with <span className="font-mono font-bold">:free</span> for zero cost.
+                            </p>
+                        </div>
                     )}
                 </div>
 

@@ -112,19 +112,29 @@ flowchart TD
 
 ## 🤖 Supported Multimodal Models
 
-### OpenRouter (Free Vision Tier)
-* **`openrouter/free`** *(Default)*: Auto-routes to the best available free vision model.
-* **`nvidia/nemotron-3.5-super-vl:free`**: Massive 1M-token context vision understanding.
-* **`google/gemma-4-31b-it:free`**: Google open-weights multimodal model.
-* **`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`**: Omni-modal reasoning model.
-* **`qwen/qwen3.8-27b:free`**: High-precision text extraction and spatial layout.
-* **`meta-llama/llama-3.2-11b-vision-instruct:free`**: Lightweight, fast vision model.
-* **`custom`**: Enter any custom OpenRouter multimodal model identifier.
+VisionVoice is strictly designed for **multimodal vision tasks** (scene narration, obstacle/hazard detection, and high-precision OCR). Only models with confirmed `image` input capability (`input_modalities: ["image"]`) are included:
 
-### Google Gemini (AI Studio)
-* **`gemini-2.5-flash`** *(Default)*: Best balance of multimodal accuracy, safety, and speed.
-* **`gemini-2.5-flash-lite`**: Ultra-low-latency vision responses.
-* **`custom`**: Enter any custom Google Gemini model identifier.
+### OpenRouter (Free Multimodal Tier)
+All preset OpenRouter models are 100% free (`$0` input / `$0` output tokens) and purpose-built for visual understanding:
+
+| Model ID | Specialization | Role in VisionVoice |
+|---|---|---|
+| **`openrouter/free`** *(Default)* | Auto Free Vision Router | Automatically filters and routes to the best active free model with image understanding. Never gets locked out by single-model rate limits. |
+| **`qwen/qwen2.5-vl-7b-instruct:free`** | Top Vision-Language OCR | Flagship open vision model from Alibaba; best-in-class for reading street signs, food labels, medicine bottles, and fine text. |
+| **`meta-llama/llama-3.2-11b-vision-instruct:free`** | Fast Edge Vision | Meta's mobile-optimized vision model; lowest latency for immediate obstacle awareness and scene descriptions. |
+| **`google/gemma-4-31b-it:free`** | High-Res Reasoning | Google DeepMind open-weights multimodal model; high visual fidelity for intricate spatial layouts. |
+| **`nvidia/nemotron-3.5-super-vl:free`** | 1M Context Vision MoE | NVIDIA vision mixture-of-experts model with 1M context; excels at multi-object spatial mapping. |
+| **`google/gemma-4-26b-a4b-it:free`** | Rapid Vision | Fast multimodal inference for continuous surroundings checks. |
+| **`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`** | Spatial Reasoning | Step-by-step perception reasoning for navigating complex indoor/outdoor obstacles. |
+| **`custom`** | User-Provided Vision Model | Enter any valid OpenRouter model ID (e.g. `thinkingmachines/inkling-2-small:free`). |
+
+> [!TIP]
+> **Why no text-only models?** General text models (like standard Llama 3 8B or Mistral 7B) cannot process visual tokens and will return `400 Bad Request`. VisionVoice only connects to models that natively support image understanding.
+
+### Google Gemini (AI Studio BYOK)
+* **`gemini-2.5-flash`** *(Recommended)*: Industry-leading multimodal reasoning, fast audio/visual perception, and native safety filters.
+* **`gemini-2.5-flash-lite`**: Ultra-low-latency vision responses for immediate shutter turnaround.
+* **`custom`**: Enter any custom Google AI Studio model identifier.
 
 ---
 
