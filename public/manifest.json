@@ -1,19 +1,41 @@
 {
+  "id": "/visionvoice",
   "short_name": "VisionVoice",
   "name": "VisionVoice - Visual Aid for the Visually Impaired",
+  "description": "Privacy-focused, multilingual visual aid and OCR assistant for the visually impaired powered by AI.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "categories": [
+    "accessibility",
+    "utilities",
+    "photo"
+  ],
   "icons": [
     {
       "src": "/icon.svg",
       "type": "image/svg+xml",
-      "sizes": "any",
+      "sizes": "192x192 512x512",
       "purpose": "any maskable"
     }
   ],
-  "start_url": "/",
-  "background_color": "#090d16",
-  "theme_color": "#090d16",
-  "display": "standalone",
-  "orientation": "portrait",
-  "scope": "/",
-  "description": "Privacy-focused, multilingual visual aid and OCR assistant for the visually impaired powered by AI."
+  "shortcuts": [
+    {
+      "name": "Describe Scene",
+      "short_name": "Describe",
+      "description": "Quickly describe surroundings and safety hazards",
+      "url": "/?task=describe",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Read Text / OCR",
+      "short_name": "Read",
+      "description": "Quickly extract and read printed or handwritten text",
+      "url": "/?task=read",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
 }

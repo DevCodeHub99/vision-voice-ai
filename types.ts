@@ -21,5 +21,6 @@ export interface UserSettings {
   geminiKey: string;
   model: string;
   rememberKey: boolean;
+  speechRate?: number;
 }
 

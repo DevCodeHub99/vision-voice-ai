@@ -1,5 +1,5 @@
 import { Task, AnalysisResult } from '../types';
-import { PROMPT_TEMPLATES } from '../constants';
+import { PROMPT_TEMPLATES, DEFAULT_OPENROUTER_CASCADE, AI_SYSTEM_INSTRUCTION } from '../constants';
 import { sanitizeKeyInput, sanitizeErrorMessage, cleanAIResponseText } from '../utils/security';
 
 /**
@@ -34,17 +34,9 @@ export const generateOpenRouterDescription = async (
     const imageUrl = `data:${mimeType};base64,${base64Data}`;
     const referer = typeof window !== 'undefined' ? window.location.origin : 'https://visionvoice.app';
 
-    // Default free OpenRouter vision models ordered by reliability and speed
-    const defaultModels = [
-        'openrouter/free',
-        'nvidia/nemotron-nano-12b-v2-vl:free',
-        'google/gemma-4-31b-it:free',
-        'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
-    ];
-
     const models = customModel?.trim()
-        ? [customModel.trim(), ...defaultModels.filter(m => m !== customModel.trim())]
-        : defaultModels;
+        ? [customModel.trim(), ...DEFAULT_OPENROUTER_CASCADE.filter(m => m !== customModel.trim())]
+        : DEFAULT_OPENROUTER_CASCADE;
 
     let lastError: Error | unknown = null;
 
@@ -68,7 +60,7 @@ export const generateOpenRouterDescription = async (
                     messages: [
                         {
                             role: 'system',
-                            content: 'You are a crisp, direct visual aid assistant for visually impaired users. Give immediate, clear, to-the-point descriptions without conversational fluff or introductory chatter.'
+                            content: AI_SYSTEM_INSTRUCTION
                         },
                         {
                             role: 'user',

@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 
 interface UseSpeechProps {
     language: string;
+    speechRate?: number;
 }
 
 /**
@@ -12,7 +13,7 @@ interface UseSpeechProps {
  * @param props - Configuration properties.
  * @param props.language - The current BCP 47 language code for synthesized speech.
  */
-export const useSpeech = ({ language }: UseSpeechProps) => {
+export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
     const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -95,7 +96,7 @@ export const useSpeech = ({ language }: UseSpeechProps) => {
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = lang;
-        utterance.rate = 0.9;
+        utterance.rate = speechRate;
 
         // Attempt to match exact language tag or prefix
         const langPrefix = lang.split('-')[0];

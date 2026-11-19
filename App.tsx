@@ -15,21 +15,30 @@ import { useCamera } from './hooks/useCamera';
 import { useVoiceCommands } from './hooks/useVoiceCommands';
 import { optimizeImage } from './utils/imageProcessor';
 
+// BeforeInstallPromptEvent type declaration
+interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 /**
- * visionvoice Main Component
+ * VisionVoice Main Application Orchestrator
  * 
- * Orchestrates the overall application flow:
- * - Language and task (Describe/Read) selection
- * - Camera capture and image upload management
- * - AI processing lifecycle management
- * - Speech-to-text (TTS), Haptics, and UI feedback
- * - Hands-free voice commands recognition
+ * Manages:
+ * - Real-time camera feeds and gallery uploads
+ * - Multimodal AI processing lifecycle
+ * - Multilingual voice narration (TTS) and voice recognition
+ * - Keyboard navigation and accessibility shortcuts
+ * - Network connectivity state and PWA installation
  */
 const App: FC = () => {
     const [task, setTask] = useState<Task>(Task.DESCRIBE);
     const [language, setLanguage] = useState<string>(LANGUAGES[0].code);
     const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
     const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+    const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
     const [userSettings, setUserSettings] = useState<UserSettings>(() => {
         try {
             const saved = localStorage.getItem('visionvoice_settings');
@@ -42,18 +51,29 @@ const App: FC = () => {
                     openRouterKey: rawOpenRouter,
                     geminiKey: rawGemini,
                     model: parsed.model || 'openrouter/free',
-                    rememberKey: parsed.rememberKey ?? true
+                    rememberKey: parsed.rememberKey ?? true,
+                    speechRate: parsed.speechRate ?? 0.95
                 };
             }
         } catch {
             // fallback
         }
-        return { provider: 'openrouter', openRouterKey: '', geminiKey: '', model: 'openrouter/free', rememberKey: true };
+        return {
+            provider: 'openrouter',
+            openRouterKey: '',
+            geminiKey: '',
+            model: 'openrouter/free',
+            rememberKey: true,
+            speechRate: 0.95
+        };
     });
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Custom Hooks
-    const { isSpeaking, speak, speakAnnouncement, toggleSpeech, stopSpeech } = useSpeech({ language });
+    const { isSpeaking, speak, speakAnnouncement, toggleSpeech, stopSpeech } = useSpeech({
+        language,
+        speechRate: userSettings.speechRate
+    });
     const { triggerHaptic } = useHaptics();
     const { cameraRef, onCaptureClick } = useCamera();
 
@@ -129,30 +149,69 @@ const App: FC = () => {
         isSpeaking
     });
 
-    // Initial Voice Hint
+    // Initial Voice Welcome & Guidance
     useEffect(() => {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
             const activeKey = userSettings.provider === 'gemini' ? userSettings.geminiKey : userSettings.openRouterKey;
             if (!activeKey?.trim()) {
-                speakAnnouncement("Welcome to VisionVoice. Please tap the Setup Key icon at top right to enter your API key.");
+                speakAnnouncement("Welcome to VisionVoice. Please tap the Setup Key button at the top right to configure your AI key.");
             } else {
-                speakAnnouncement("Camera ready. Select mode at bottom or tap center to capture.");
+                speakAnnouncement("Camera ready. Tap center shutter or press Space to capture.");
             }
-        }, 1000);
+        }, 800);
+        return () => clearTimeout(timer);
     }, []);
 
+    // Network Connectivity Listener
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOnline(true);
+            speakAnnouncement("Internet connection restored.");
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
+            speakAnnouncement("Internet connection lost. Multimodal vision requires network connectivity.");
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [speakAnnouncement]);
+
+    // PWA Install Prompt Listener
+    useEffect(() => {
+        const handleBeforeInstall = (e: Event) => {
+            e.preventDefault();
+            setInstallPrompt(e as BeforeInstallPromptEvent);
+        };
+        window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+        return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+    }, []);
+
+    const handleInstallApp = useCallback(async () => {
+        if (!installPrompt) return;
+        try {
+            await installPrompt.prompt();
+            const { outcome } = await installPrompt.userChoice;
+            if (outcome === 'accepted') {
+                speakAnnouncement("VisionVoice installation complete.");
+                setInstallPrompt(null);
+            }
+        } catch {
+            // Ignore installation aborts
+        }
+    }, [installPrompt, speakAnnouncement]);
+
     // Handlers
-    /**
-     * Handles image file uploads from the device gallery.
-     * Converts the file to base-64 and triggers AI processing.
-     */
     const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        // Reset value so re-uploading the same file triggers onChange
         event.target.value = '';
 
         if (file) {
-            // Guard against massive binaries causing browser memory exhaustion
             if (file.size > 25 * 1024 * 1024) {
                 speakAnnouncement("Image exceeds 25 megabyte limit. Please select a smaller photo.");
                 return;
@@ -168,10 +227,6 @@ const App: FC = () => {
         }
     }, [triggerHaptic, processImage, task, speakAnnouncement]);
 
-    // Called by Camera component when it captures a frame
-    /**
-     * Handles image capture from the live camera stream.
-     */
     const handleCameraCapture = useCallback((imageDataUrl: string) => {
         const [header] = imageDataUrl.split(',');
         const mimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
@@ -185,8 +240,10 @@ const App: FC = () => {
     }, [reset, stopSpeech, speakAnnouncement]);
 
     const handleCopy = useCallback(() => {
-        navigator.clipboard.writeText(output);
-        speakAnnouncement("Copied");
+        if (output) {
+            navigator.clipboard.writeText(output);
+            speakAnnouncement("Text copied to clipboard.");
+        }
     }, [output, speakAnnouncement]);
 
     const handleUploadClick = useCallback(() => {
@@ -198,9 +255,6 @@ const App: FC = () => {
         onCaptureClick();
     }, [triggerHaptic, onCaptureClick]);
 
-    /**
-     * Updates the current application language and provides voice feedback.
-     */
     const handleLanguageChange = useCallback((lang: string) => {
         setLanguage(lang);
         speakAnnouncement(`Language changed to ${LANGUAGES.find(l => l.code === lang)?.name}`);
@@ -224,7 +278,8 @@ const App: FC = () => {
                     openRouterKeyEnc: obfuscateKey(newSettings.openRouterKey),
                     geminiKeyEnc: obfuscateKey(newSettings.geminiKey),
                     model: newSettings.model,
-                    rememberKey: true
+                    rememberKey: true,
+                    speechRate: newSettings.speechRate ?? 0.95
                 };
                 localStorage.setItem('visionvoice_settings', JSON.stringify(toStore));
             } else {
@@ -233,14 +288,15 @@ const App: FC = () => {
                     openRouterKeyEnc: '',
                     geminiKeyEnc: '',
                     model: newSettings.model,
-                    rememberKey: false
+                    rememberKey: false,
+                    speechRate: newSettings.speechRate ?? 0.95
                 };
                 localStorage.setItem('visionvoice_settings', JSON.stringify(toStore));
             }
         } catch {
             console.warn("Could not save settings to localStorage");
         }
-        speakAnnouncement("Settings saved");
+        speakAnnouncement("Settings saved.");
     }, [speakAnnouncement]);
 
     const handleOpenSettings = useCallback(() => {
@@ -250,6 +306,66 @@ const App: FC = () => {
     const handleCloseSettings = useCallback(() => {
         setIsSettingsOpen(false);
     }, []);
+
+    // Global Keyboard Shortcuts for Low-Vision & Motor Accessibility
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const activeElem = document.activeElement;
+            if (activeElem && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElem.tagName)) {
+                return;
+            }
+
+            if (e.code === 'Space' || e.code === 'Enter') {
+                if (activeTab === 'camera' && !isSettingsOpen && !image) {
+                    e.preventDefault();
+                    handleCaptureClick();
+                }
+            } else if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                handleVoiceDescribe();
+            } else if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                handleVoiceReadText();
+            } else if (e.key === 'u' || e.key === 'U') {
+                e.preventDefault();
+                setActiveTab('upload');
+                speakAnnouncement("Upload mode.");
+            } else if (e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                if (output) {
+                    toggleSpeech(output);
+                }
+            } else if (e.key === 'v' || e.key === 'V') {
+                e.preventDefault();
+                if (isVoiceSupported) {
+                    handleToggleVoice();
+                }
+            } else if (e.key === 'Escape') {
+                if (isSettingsOpen) {
+                    handleCloseSettings();
+                } else if (image) {
+                    handleReset();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [
+        activeTab,
+        isSettingsOpen,
+        image,
+        output,
+        handleCaptureClick,
+        handleVoiceDescribe,
+        handleVoiceReadText,
+        toggleSpeech,
+        isVoiceSupported,
+        handleToggleVoice,
+        handleCloseSettings,
+        handleReset,
+        speakAnnouncement
+    ]);
 
     return (
         <div className="fixed inset-0 h-[100dvh] bg-slate-950 text-slate-100 overflow-hidden font-sans select-none">
@@ -261,7 +377,7 @@ const App: FC = () => {
                 isActive={!image}
             />
 
-            {/* 2. MAIN UI OVERLAY */}
+            {/* 2. MAIN ACCESSIBLE UI OVERLAY */}
             <div className={`relative z-10 flex flex-col justify-between h-full transition-opacity duration-300 ${image ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
 
                 <Header
@@ -272,13 +388,19 @@ const App: FC = () => {
                     isVoiceSupported={isVoiceSupported}
                     isVoiceListening={isVoiceListening}
                     onToggleVoice={handleToggleVoice}
+                    isOnline={isOnline}
+                    hasInstallPrompt={Boolean(installPrompt)}
+                    onInstall={handleInstallApp}
                 />
 
-                {/* Center Content Area */}
-                <div className="flex-grow">
-                    {/* Center Message (Optional Aid) */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none opacity-60">
-                        <i className="fa-solid fa-expand text-white/20 text-6xl"></i>
+                {/* Center Viewfinder Reticle (Aids Aiming for Low-Vision Users) */}
+                <div className="flex-grow flex items-center justify-center pointer-events-none">
+                    <div className="w-56 h-56 sm:w-64 sm:h-64 rounded-3xl border-2 border-white/25 flex items-center justify-center relative">
+                        <div className="absolute top-0 left-0 w-6 h-6 border-t-3 border-l-3 border-violet-400 -mt-0.5 -ml-0.5 rounded-tl-xl"></div>
+                        <div className="absolute top-0 right-0 w-6 h-6 border-t-3 border-r-3 border-violet-400 -mt-0.5 -mr-0.5 rounded-tr-xl"></div>
+                        <div className="absolute bottom-0 left-0 w-6 h-6 border-b-3 border-l-3 border-violet-400 -mb-0.5 -ml-0.5 rounded-bl-xl"></div>
+                        <div className="absolute bottom-0 right-0 w-6 h-6 border-b-3 border-r-3 border-violet-400 -mb-0.5 -mr-0.5 rounded-br-xl"></div>
+                        <i className="fa-solid fa-plus text-white/30 text-xl" aria-hidden="true"></i>
                     </div>
                 </div>
 
@@ -294,7 +416,7 @@ const App: FC = () => {
                 />
             </div>
 
-            {/* 3. RESULTS SHEET (Slide Up) */}
+            {/* 3. RESULTS SHEET (Slide Up Accessible Modal) */}
             <ResultSheet
                 image={image}
                 isLoading={isLoading}

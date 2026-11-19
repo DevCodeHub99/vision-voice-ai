@@ -1,5 +1,5 @@
 import { Task, AnalysisResult } from '../types';
-import { PROMPT_TEMPLATES } from '../constants';
+import { PROMPT_TEMPLATES, DEFAULT_GEMINI_CASCADE, AI_SYSTEM_INSTRUCTION } from '../constants';
 import { sanitizeKeyInput, sanitizeErrorMessage, cleanAIResponseText } from '../utils/security';
 
 /**
@@ -40,11 +40,9 @@ export const generateGeminiDescription = async (
 
     const fullPrompt = `${PROMPT_TEMPLATES[task]} Please provide the response in ${languageName}.`;
 
-    // Production stable Gemini models
-    const defaultModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
     const models = customModel?.trim()
-        ? [customModel.trim(), ...defaultModels.filter(m => m !== customModel.trim())]
-        : defaultModels;
+        ? [customModel.trim(), ...DEFAULT_GEMINI_CASCADE.filter(m => m !== customModel.trim())]
+        : DEFAULT_GEMINI_CASCADE;
 
     let lastError: Error | unknown = null;
 
@@ -62,7 +60,7 @@ export const generateGeminiDescription = async (
                 },
                 body: JSON.stringify({
                     systemInstruction: {
-                        parts: [{ text: 'You are a crisp, direct visual aid assistant for visually impaired users. Give immediate, clear, to-the-point descriptions without conversational fluff or introductory chatter.' }]
+                        parts: [{ text: AI_SYSTEM_INSTRUCTION }]
                     },
                     contents: [
                         {
