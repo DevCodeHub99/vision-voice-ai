@@ -9,7 +9,7 @@ interface BottomNavProps {
     onTabChange: (tab: 'camera' | 'upload') => void;
     onCaptureClick: () => void;
     onUploadClick: () => void;
-    fileInputRef: RefObject<HTMLInputElement>;
+    fileInputRef: RefObject<HTMLInputElement | null>;
     handleImageUpload: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 

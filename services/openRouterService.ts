@@ -87,6 +87,13 @@ export const generateOpenRouterDescription = async (
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const msg = errorData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+                // Fail fast on auth or credit errors instead of hanging 120s trying subsequent models
+                if (response.status === 401 || response.status === 403 || response.status === 402) {
+                    return {
+                        success: false,
+                        error: sanitizeErrorMessage(`OpenRouter ${response.status}: ${msg}. Please check your API key and credits in Settings.`)
+                    };
+                }
                 throw new Error(msg);
             }
 

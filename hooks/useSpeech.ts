@@ -57,6 +57,9 @@ export const useSpeech = ({ language }: UseSpeechProps) => {
 
         return () => {
             clearTimeout(timer);
+            if (window.speechSynthesis) {
+                window.speechSynthesis.onvoiceschanged = null;
+            }
         };
     }, []);
 
@@ -67,6 +70,19 @@ export const useSpeech = ({ language }: UseSpeechProps) => {
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
+
+        utterance.onstart = () => {
+            setIsSpeaking(true);
+        };
+        utterance.onend = () => {
+            setIsSpeaking(false);
+            utteranceRef.current = null;
+        };
+        utterance.onerror = () => {
+            setIsSpeaking(false);
+            utteranceRef.current = null;
+        };
+
         utteranceRef.current = utterance;
         window.speechSynthesis.speak(utterance);
     }, [stopKeepAlive]);

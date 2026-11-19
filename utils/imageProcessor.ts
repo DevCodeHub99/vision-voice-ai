@@ -90,6 +90,9 @@ export const optimizeImage = async (
 
                 const mimeType = 'image/jpeg';
                 const dataUrl = canvas.toDataURL(mimeType, quality);
+                // Zero canvas dimensions to immediately release WebKit GPU buffer
+                canvas.width = 0;
+                canvas.height = 0;
                 const [header, base64] = dataUrl.split(',');
 
                 resolve({

@@ -148,7 +148,16 @@ const App: FC = () => {
      */
     const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
+        // Reset value so re-uploading the same file triggers onChange
+        event.target.value = '';
+
         if (file) {
+            // Guard against massive binaries causing browser memory exhaustion
+            if (file.size > 25 * 1024 * 1024) {
+                speakAnnouncement("Image exceeds 25 megabyte limit. Please select a smaller photo.");
+                return;
+            }
+
             triggerHaptic();
             try {
                 const { dataUrl, mimeType } = await optimizeImage(file);

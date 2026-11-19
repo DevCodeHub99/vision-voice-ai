@@ -120,7 +120,16 @@ export const parseVoiceCommand = (transcript: string, language: string = 'en-US'
     const prefix = language.split('-')[0];
     const localized = MULTILINGUAL_KEYWORDS[langKey] || MULTILINGUAL_KEYWORDS[prefix] || null;
 
-    const matches = (words: string[]) => words.some(w => text.includes(w.toLowerCase()));
+    const matches = (words: string[]) => words.some(w => {
+        const lowerWord = w.toLowerCase();
+        // CJK characters (Japanese): substring match
+        if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(lowerWord)) {
+            return text.includes(lowerWord);
+        }
+        // Latin and other scripts: word boundary match to avoid partial matches (e.g. "already" -> "read")
+        const escaped = lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp(`(^|\\s|[.,!?;])${escaped}($|\\s|[.,!?;])`, 'i').test(text);
+    });
 
     // Priority order: Stop > Capture > Repeat > Describe > Read
     if (matches(UNIVERSAL_KEYWORDS.stop) || (localized && matches(localized.stop))) {
@@ -184,13 +193,14 @@ export const useVoiceCommands = ({
     }, []);
 
     const handleCommand = useCallback((transcript: string) => {
-        // Prevent acoustic feedback loops when the app itself is reading or speaking
-        if (isSpeakingRef.current) {
-            return;
-        }
-
         const action = parseVoiceCommand(transcript, language);
         if (!action) return;
+
+        // Prevent acoustic feedback loops when the app itself is reading or speaking,
+        // but ALWAYS allow "stop" commands to break through and interrupt speech immediately
+        if (isSpeakingRef.current && action !== 'stop') {
+            return;
+        }
 
         setLastCommand(transcript.trim());
 
@@ -269,14 +279,17 @@ export const useVoiceCommands = ({
             };
 
             recognition.onend = () => {
-                // If user didn't explicitly stop listening, auto-restart continuous listener
+                // If user didn't explicitly stop listening, auto-restart continuous listener with debouncing
                 if (activeListeningRef.current) {
-                    try {
-                        recognition.start();
-                    } catch {
-                        setIsListening(false);
-                        activeListeningRef.current = false;
-                    }
+                    setTimeout(() => {
+                        if (activeListeningRef.current && recognitionRef.current) {
+                            try {
+                                recognitionRef.current.start();
+                            } catch {
+                                // Already active or permission revoked
+                            }
+                        }
+                    }, 250);
                 } else {
                     setIsListening(false);
                 }

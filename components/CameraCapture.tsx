@@ -17,6 +17,8 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const [retryKey, setRetryKey] = useState(0);
+
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -27,54 +29,53 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
     }
   }, []);
 
-  const startCamera = useCallback(async () => {
-    stopCamera(); // Ensure previous stream is stopped
-
-    // Check if camera is already starting to avoid race conditions
-    if (streamRef.current) return;
-
-    try {
-      let newStream: MediaStream;
-      try {
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment', // Prefer back camera on mobile
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          }
-        });
-      } catch {
-        // Fallback for laptops/desktops with standard webcams
-        newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      }
-
-      if (!videoRef.current) {
-        newStream.getTracks().forEach(t => t.stop());
-        return;
-      }
-
-      streamRef.current = newStream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream;
-      }
-      setError(null);
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setError("Camera access denied. Please enable camera permissions.");
-    }
-  }, [stopCamera]);
-
   useEffect(() => {
-    if (isActive) {
-      startCamera();
-    } else {
+    let isCancelled = false;
+
+    const initCamera = async () => {
       stopCamera();
-    }
+      if (!isActive) return;
+
+      try {
+        let newStream: MediaStream;
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment', // Prefer back camera on mobile
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            }
+          });
+        } catch {
+          // Fallback for laptops/desktops with standard webcams
+          newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+
+        if (isCancelled || !videoRef.current) {
+          newStream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        streamRef.current = newStream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = newStream;
+        }
+        setError(null);
+      } catch (err) {
+        if (!isCancelled) {
+          console.error("Error accessing camera:", err);
+          setError("Camera access denied. Please enable camera permissions.");
+        }
+      }
+    };
+
+    initCamera();
 
     return () => {
+      isCancelled = true;
       stopCamera();
     };
-  }, [isActive, startCamera, stopCamera]);
+  }, [isActive, stopCamera, retryKey]);
 
   const handleCapture = useCallback(() => {
     if (videoRef.current && canvasRef.current) {
@@ -92,6 +93,9 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
           context.imageSmoothingQuality = 'high';
           context.drawImage(video, 0, 0, width, height);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8); // Compress quality to 0.8
+          // Explicitly release backing store to prevent WebKit GPU memory retention
+          canvas.width = 0;
+          canvas.height = 0;
           onCapture(dataUrl);
         }
       }
@@ -108,7 +112,7 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
         <div className="flex flex-col items-center justify-center h-full text-center p-6">
           <i className="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
           <p className="text-red-100 font-medium">{error}</p>
-          <button onClick={startCamera} className="mt-4 px-4 py-2 bg-slate-800 rounded text-white">Retry</button>
+          <button onClick={() => setRetryKey(k => k + 1)} className="mt-4 px-4 py-2 bg-slate-800 rounded text-white active:scale-95 transition-transform">Retry</button>
         </div>
       ) : (
         <video

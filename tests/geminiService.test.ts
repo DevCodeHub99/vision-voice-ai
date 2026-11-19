@@ -59,6 +59,8 @@ describe('geminiService Security & Header Authentication', () => {
         );
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain("must start with 'AIzaSy...'");
+        if (!result.success) {
+            expect(result.error).toContain("must start with 'AIzaSy...'");
+        }
     });
 });

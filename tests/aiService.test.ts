@@ -27,8 +27,10 @@ describe('aiService Dispatcher', () => {
         });
 
         expect(openRouterService.generateOpenRouterDescription).toHaveBeenCalledTimes(1);
-        expect(result.success).toBe(true);
-        expect(result.text).toBe('A white mug on a wooden table.');
+        expect(result).toEqual({
+            success: true,
+            text: 'A white mug on a wooden table.'
+        });
     });
 
     it('should route to Gemini when provider is set to gemini', async () => {
@@ -46,8 +48,10 @@ describe('aiService Dispatcher', () => {
         });
 
         expect(geminiService.generateGeminiDescription).toHaveBeenCalledTimes(1);
-        expect(result.success).toBe(true);
-        expect(result.text).toBe('Text on paper reads: Emergency Exit.');
+        expect(result).toEqual({
+            success: true,
+            text: 'Text on paper reads: Emergency Exit.'
+        });
     });
 
     it('should fallback to OpenRouter when Gemini fails and OpenRouter key exists', async () => {
@@ -70,8 +74,10 @@ describe('aiService Dispatcher', () => {
 
         expect(geminiService.generateGeminiDescription).toHaveBeenCalledTimes(1);
         expect(openRouterService.generateOpenRouterDescription).toHaveBeenCalledTimes(1);
-        expect(result.success).toBe(true);
-        expect(result.text).toBe('Fallback scene description from OpenRouter.');
+        expect(result).toEqual({
+            success: true,
+            text: 'Fallback scene description from OpenRouter.'
+        });
     });
 
     it('should fallback to Gemini when OpenRouter fails and Gemini key exists', async () => {
@@ -94,7 +100,9 @@ describe('aiService Dispatcher', () => {
 
         expect(openRouterService.generateOpenRouterDescription).toHaveBeenCalledTimes(1);
         expect(geminiService.generateGeminiDescription).toHaveBeenCalledTimes(1);
-        expect(result.success).toBe(true);
-        expect(result.text).toBe('Fallback OCR from Gemini.');
+        expect(result).toEqual({
+            success: true,
+            text: 'Fallback OCR from Gemini.'
+        });
     });
 });
