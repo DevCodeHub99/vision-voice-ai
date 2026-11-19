@@ -30,7 +30,7 @@ export const generateOpenRouterDescription = async (
         };
     }
 
-    const fullPrompt = `${PROMPT_TEMPLATES[task]} Please provide the response in ${languageName}.`;
+    const fullPrompt = `${AI_SYSTEM_INSTRUCTION}\n\nTask: ${PROMPT_TEMPLATES[task]} Please provide the response in ${languageName}.`;
     const imageUrl = `data:${mimeType};base64,${base64Data}`;
     const referer = typeof window !== 'undefined' ? window.location.origin : 'https://visionvoice.app';
 
@@ -59,10 +59,6 @@ export const generateOpenRouterDescription = async (
                     temperature: 0.2,
                     messages: [
                         {
-                            role: 'system',
-                            content: AI_SYSTEM_INSTRUCTION
-                        },
-                        {
                             role: 'user',
                             content: [
                                 { type: 'text', text: fullPrompt },
@@ -78,7 +74,11 @@ export const generateOpenRouterDescription = async (
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                const msg = errorData.error?.message || `HTTP ${response.status} ${response.statusText}`;
+                const rawMsg = errorData.error?.metadata?.raw 
+                    || errorData.error?.message 
+                    || `HTTP ${response.status} ${response.statusText}`;
+                const msg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg);
+
                 // Fail fast on auth or credit errors instead of hanging 120s trying subsequent models
                 if (response.status === 401 || response.status === 403 || response.status === 402) {
                     return {
@@ -108,9 +108,14 @@ export const generateOpenRouterDescription = async (
         }
     }
 
-    const rawError = lastError instanceof Error
-        ? `${lastError.message}. Please check your network connection and OpenRouter API quota.`
-        : "An unknown error occurred while contacting OpenRouter service.";
+    let rawError = "An unknown error occurred while contacting OpenRouter service.";
+    if (lastError instanceof Error) {
+        if (lastError.message.toLowerCase().includes('provider returned error')) {
+            rawError = "The model provider returned an error. On OpenRouter, free models require enabling 'Allow free models that may train on inputs' in your OpenRouter Account Settings (openrouter.ai/settings/privacy), or switch to another model in Settings.";
+        } else {
+            rawError = `${lastError.message}. Please check your network connection and OpenRouter API quota.`;
+        }
+    }
 
     return {
         success: false,
