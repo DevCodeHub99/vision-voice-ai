@@ -2,15 +2,18 @@
 
 # 👓 VisionVoice
 
-## 🚀 [**Try VisionVoice Live**](https://visionvoiceai.vercel.app/)
+### **Real-Time Multimodal AI Visual Aid for the Visually Impaired**
 
-_A modern, privacy-focused, multi-provider visual aid for the visually impaired, powered by OpenRouter & Google Gemini AI._
+[![Live Demo](https://img.shields.io/badge/Demo-visionvoiceai.vercel.app-7C3AED?style=for-the-badge&logo=vercel&logoColor=white)](https://visionvoiceai.vercel.app/)
+[![PWA Ready](https://img.shields.io/badge/PWA-Installable_Offline-059669?style=for-the-badge&logo=pwa&logoColor=white)](https://visionvoiceai.vercel.app/)
 
 [![React](https://img.shields.io/badge/React-19.1.1-61DAFB?logo=react&logoColor=white)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-6.x-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
-[![OpenRouter](https://img.shields.io/badge/OpenRouter-Multi_Model-7C3AED?logo=openai&logoColor=white)](https://openrouter.ai/)
-[![Gemini](https://img.shields.io/badge/AI-Gemini_2.5_Flash-4285F4?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![Vitest](https://img.shields.io/badge/Vitest-5.1.1-FCC72B?logo=vitest&logoColor=black)](https://vitest.dev/)
+[![OpenRouter](https://img.shields.io/badge/OpenRouter-Free_Tier-7C3AED?logo=openai&logoColor=white)](https://openrouter.ai/)
+[![Google Gemini](https://img.shields.io/badge/Gemini-2.5_Flash-4285F4?logo=google&logoColor=white)](https://aistudio.google.com/)
 
 </div>
 
@@ -18,60 +21,158 @@ _A modern, privacy-focused, multi-provider visual aid for the visually impaired,
 
 ## 📖 Overview
 
-**VisionVoice** is an accessibility-first web application designed to empower visually impaired users to perceive and navigate their environment with confidence. Operating strictly on a **Bring Your Own Key (BYOK)** model with zero backend server storage, VisionVoice delivers rapid, crisp visual descriptions and text extraction in multiple languages.
+**VisionVoice** is an accessibility-first, privacy-focused Progressive Web Application (PWA) designed to empower visually impaired and low-vision individuals to perceive, navigate, and understand their environment. 
+
+Using native browser media APIs, client-side pre-compression, and state-of-the-art multimodal vision models from **OpenRouter** and **Google Gemini AI Studio**, VisionVoice provides real-time natural language narrations and instant OCR text readout.
+
+VisionVoice operates on a strict **Bring Your Own Key (BYOK)** model: **zero servers, zero databases, and zero tracking**. All images and API keys remain strictly on the user's device.
 
 ---
 
-## ✨ Key Features
+## 🏗️ Architecture & Data Flow
+
+```mermaid
+flowchart TD
+    A["Camera Stream / Gallery Photo"] --> B["Canvas Downscaler (Max 1280px, JPEG 0.8)"]
+    B --> C["aiService Unified Dispatcher"]
+    
+    C -->|"Primary Provider"| D{"Active Provider"}
+    D -->|"OpenRouter (Free Tier)"| E["OpenRouter API\n(Nemotron / Gemma / Qwen)"]
+    D -->|"Google Gemini"| F["Gemini API\n(Gemini 2.5 Flash / Lite)"]
+    
+    E -->|"Quota / Rate Limit Error"| G["Automatic Cross-Provider Failover"]
+    F -->|"Quota / Rate Limit Error"| G
+    G --> D
+    
+    E -->|"Success Payload"| H["Security Response Sanitizer"]
+    F -->|"Success Payload"| H
+    
+    H --> I["Speech Synthesis (TTS Engine)"]
+    H --> J["Animated Equalizer Wave UI"]
+    H --> K["Tactile Haptic Feedback"]
+```
+
+---
+
+## ✨ Key Capabilities & Features
 
 ### 🔐 Multi-Provider BYOK & Hardened Client Security
-- **Multi-Provider AI**: Seamlessly choose between **OpenRouter** (`sk-or-v1-...`) and **Google Gemini AI Studio** (`AIzaSy...`).
-- **Header-Based Authentication**: Google Gemini requests use the official `x-goog-api-key` header, preventing credentials from appearing in URL query parameters.
-- **XOR Salt Key Obfuscation**: API keys stored in `localStorage` are encrypted using XOR salt encoding, preventing plain-text inspection.
-- **In-Memory Session Option**: Option to keep keys strictly in React memory for the active tab session only.
-- **Automated Error Redaction**: Global regex scrubbing masks key signatures (`sk-or-v1-***`, `AIzaSy***`, `key=***`) across all console outputs and UI error sheets.
+- **Multi-Provider AI Architecture**: Seamlessly switch between **OpenRouter** (`sk-or-v1-...`) and **Google AI Studio** (`AIzaSy...`).
+- **Resilient Fallback Cascades**: If the primary model fails with a transient 500 error or rate limit, requests automatically cascade to fallback models and across providers.
+- **Fail-Fast Client Protection**: Immediate rejection on HTTP 401/402/403 errors prevents 120-second request freezes.
+- **Header-Based Authentication**: Google Gemini requests use official `x-goog-api-key` headers; API keys never appear in URL query parameters.
+- **XOR Salt Obfuscation**: Keys saved to browser storage are encrypted via XOR salt obfuscation to prevent casual DevTools inspection.
+- **Strict Content Security Policy (CSP)**: `connect-src` is strictly locked down to `'self'`, `https://openrouter.ai`, and `https://generativelanguage.googleapis.com`.
+- **Automated Error Redaction**: Global regex scrubbing masks key signatures (`sk-or-v1-***`, `AIzaSy***`, `key=***`) across all console logs and UI error sheets.
 
-### ⚡ Crisp, Concise & Fast AI Responses
-- **To-The-Point Descriptions**: AI prompts are tuned to deliver **2 to 3 clear, direct sentences max**, eliminating conversational fluff and focusing immediately on primary subjects and safety hazards.
-- **Direct Text Reader (OCR)**: Extracts visible text from documents, labels, and signs without intro chatter.
-- **Token Capped**: Capped output tokens ensure instant network execution and low-latency audio reading.
+### 🎙️ Hands-Free Multilingual Voice Commands
+- **Continuous Voice Control**: Execute hands-free actions across 8 languages:
+  - **`Describe`**: Activates environment scene description mode.
+  - **`Read`**: Activates direct OCR text extraction mode.
+  - **`Capture`**: Takes a high-resolution photo instantly.
+  - **`Stop`**: Immediately interrupts ongoing speech narration.
+  - **`Repeat`**: Replays the latest AI description.
+- **Acoustic Feedback Loop Isolation**: Microphone input is automatically suppressed while speech synthesis is active, preventing the device from triggering its own voice commands.
+- **Word-Boundary Matching**: Uses script-specific regex boundaries (`\b`) to eliminate false positive command triggers (e.g. *"already"* does not trigger *"read"*).
 
-### ♿ Accessibility & Modern Glassmorphic UX
-- **1-Tap Error Recovery**: Interactive **"Open AI Settings & Add Key"** button embedded directly inside error sheets.
-- **Dynamic Header Status Badge**: Real-time status pill indicating missing key (`Setup Key` pulsing amber) vs. active provider (`OpenRouter` / `Gemini` green).
-- **Animated Audio Equalizer**: Four-bar bouncing visualizer wave provides clear visual feedback during text-to-speech reading.
-- **Universal Mobile Responsiveness (`100dvh`)**: Mobile safe-area insets (`env(safe-area-inset-bottom)`) prevent dynamic URL bar jumpiness on iOS Safari & Android Chrome.
-- **Multilingual Support**: Supports 8 major languages (English, हिन्दी, Español, Français, Deutsch, 日本語, Italiano, Português).
+### ⚡ Crisp, Concise Descriptions & OCR
+- **Scene Description (`Task.DESCRIBE`)**: Tuned to deliver **2 to 3 crisp, direct sentences max**. Highlights primary subjects, spatial layout, and immediate safety hazards or obstacles first without introductory filler.
+- **Direct Text Reader (`Task.READ`)**: Extracts visible signs, documents, labels, and menus with zero preamble.
+- **Client-Side Image Compression**: High-resolution smartphone frames (up to 48MP) are downscaled to 1280px at 0.8 JPEG quality before transmission, reducing network payload sizes by up to 90% and slashing latency.
+
+### 📲 Progressive Web App (PWA) Offline Support
+- **Offline Application Shell**: Service Worker (`sw.js`) provides Stale-While-Revalidate caching for static assets, enabling instant app launches without network connectivity.
+- **Network Connectivity Monitor**: Real-time `online`/`offline` listener surfaces visual status badges and auditory alerts when connectivity fluctuates.
+- **1-Tap PWA Install**: Automatically displays an **"Install App"** button in the header when the browser triggers `beforeinstallprompt`.
+- **App Shortcuts**: Quick-launch actions in `manifest.json` allow opening directly into *"Describe Scene"* or *"Read Text"* from the mobile home screen.
+
+### ♿ Universal Accessibility (WCAG 2.1 AA) & Ergonomics
+- **Self-Healing Error Boundary**: Catches unhandled runtime exceptions, renders a high-contrast recovery screen, and announces the error via speech synthesis: *"VisionVoice encountered an unexpected problem. Tap the center of the screen to reload."*
+- **Speech Narration Speed Control**: Customize voice speed from **0.75x to 1.5x** via the settings slider.
+- **Large Touch Targets**: All interactive elements adhere to minimum $48\text{px}$ touch targets (`touch-action: manipulation`).
+- **Tactile Shutter & Viewfinder Reticle**: Shutter button features dual glowing border rings and spring compression; center reticle aids low-vision framing.
+- **High Contrast Focus Outlines**: Enhanced `:focus-visible` styling (`outline: 2px solid #a78bfa`) and Windows Forced Colors Mode support.
 
 ---
 
-## 🛠️ Architecture & Tech Stack
+## ⌨️ Accessibility Keyboard Shortcuts
+
+| Shortcut | Action | Context |
+| :--- | :--- | :--- |
+| <kbd>Space</kbd> / <kbd>Enter</kbd> | Capture photo immediately | Camera mode |
+| <kbd>D</kbd> | Switch to **Describe Scene** mode | Global |
+| <kbd>R</kbd> | Switch to **Read Text / OCR** mode | Global |
+| <kbd>U</kbd> | Switch to **Gallery Upload** mode | Global |
+| <kbd>S</kbd> | Play / Pause voice narration | Active result |
+| <kbd>V</kbd> | Toggle hands-free voice recognition | Global |
+| <kbd>Esc</kbd> | Dismiss result sheet / close settings | Modals |
+
+---
+
+## 🤖 Supported Multimodal Models
+
+### OpenRouter (Free Vision Tier)
+* **`openrouter/free`** *(Default)*: Auto-routes to the best available free vision model.
+* **`nvidia/nemotron-3.5-super-vl:free`**: Massive 1M-token context vision understanding.
+* **`google/gemma-4-31b-it:free`**: Google open-weights multimodal model.
+* **`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`**: Omni-modal reasoning model.
+* **`qwen/qwen3.8-27b:free`**: High-precision text extraction and spatial layout.
+* **`meta-llama/llama-3.2-11b-vision-instruct:free`**: Lightweight, fast vision model.
+* **`custom`**: Enter any custom OpenRouter multimodal model identifier.
+
+### Google Gemini (AI Studio)
+* **`gemini-2.5-flash`** *(Default)*: Best balance of multimodal accuracy, safety, and speed.
+* **`gemini-2.5-flash-lite`**: Ultra-low-latency vision responses.
+* **`custom`**: Enter any custom Google Gemini model identifier.
+
+---
+
+## 📁 Repository Directory Structure
 
 ```text
-VisionVoice/
+vision-voice-ai/
 ├── components/
-│   ├── CameraCapture.tsx    # Live WebRTC stream & webcam fallback handling
-│   ├── BottomNav.tsx        # Mode switching & glowing shutter button
-│   ├── ResultSheet.tsx      # Slide-up panel with equalizer wave & 1-tap error recovery
-│   ├── Header.tsx           # Language selector & dynamic Key Status Pill
-│   └── SettingsModal.tsx    # Multi-provider BYOK & model selection UI
+│   ├── BottomNav.tsx        # Accessible mode tablist & glowing tactile shutter
+│   ├── CameraCapture.tsx    # Live WebRTC video feed, canvas downscaler & track guards
+│   ├── ErrorBoundary.tsx    # Accessible React Error Boundary with vocalized reload
+│   ├── Header.tsx           # Language picker, offline badge, PWA install & status pill
+│   ├── ResultSheet.tsx      # Slide-up modal with 5-bar equalizer wave & Web Share
+│   └── SettingsModal.tsx    # Multi-provider BYOK, model selector & speech rate slider
 ├── hooks/
-│   ├── useSpeech.ts         # Web Speech API wrapper for announcements & TTS
-│   ├── useHaptics.ts        # Navigator.vibrate tactile feedback
-│   ├── useCamera.ts         # Imperative camera handle & frame capture
-│   └── useImageProcessing.ts# AI analysis lifecycle state machine
+│   ├── useCamera.ts         # Imperative camera handle & capture coordination
+│   ├── useHaptics.ts        # Memoized navigator.vibrate tactile feedback
+│   ├── useImageProcessing.ts# AI state machine & analysis orchestrator
+│   ├── useSpeech.ts         # Speech synthesis with keep-alive heartbeat & speechRate
+│   └── useVoiceCommands.ts  # Multilingual hands-free voice command recognizer
 ├── services/
-│   ├── aiService.ts         # Multi-provider dispatcher
-│   ├── openRouterService.ts # OpenRouter REST client with timeout & fallback models
-│   └── geminiService.ts     # Zero-dependency Google Gemini REST client
+│   ├── aiService.ts         # Unified provider dispatcher with cross-provider failover
+│   ├── geminiService.ts     # Lightweight Google Gemini REST client (header auth)
+│   └── openRouterService.ts # Lightweight OpenRouter REST client (fail-fast 4xx)
 ├── utils/
-│   ├── imageProcessor.ts    # Client-side image pre-compression & downscaling pipeline
-│   └── security.ts          # XOR key obfuscation, input sanitization & error scrubbing
+│   ├── imageProcessor.ts    # Canvas downscaler (max 1280px) & JPEG 0.8 compressor
+│   └── security.ts          # XOR key obfuscation, key sanitization & regex scrubbing
+├── tests/
+│   ├── aiService.test.ts          # Multi-provider routing & failover test suite
+│   ├── errorBoundary.test.ts      # Error Boundary speech announcement test suite
+│   ├── geminiService.test.ts      # Gemini header authentication & cascade tests
+│   ├── imageProcessor.test.ts     # Aspect ratio & downscaling calculation tests
+│   ├── openRouterService.test.ts  # OpenRouter headers, cascades & 4xx fail-fast tests
+│   ├── security.test.ts           # XOR cipher, redaction regexes & text cleaner tests
+│   └── voiceCommands.test.ts      # Multilingual command parser test suite (8 languages)
 ├── public/
-│   ├── manifest.json        # Progressive Web App (PWA) standalone configuration
-│   └── icon.svg             # High-contrast accessibility app icon
-├── constants.ts             # Multilingual prompt templates & language options
-└── types.ts                 # TypeScript interfaces & Enums
+│   ├── icon.svg             # High-contrast accessibility app icon
+│   ├── manifest.json        # Standalone PWA configuration with app shortcuts
+│   └── sw.js                # Service Worker for offline application shell caching
+├── App.tsx                  # Root orchestrator, shortcuts & connectivity listener
+├── constants.ts             # 8 languages, prompt templates, system instructions & models
+├── index.css                # Tailwind CSS v4, safe area insets & focus-visible styles
+├── index.html               # PWA shell, Content Security Policy (CSP) & permissions
+├── index.tsx                # React 19 root bootstrap & Service Worker registration
+├── package.json             # NPM dependencies, allowScripts & build commands
+├── tsconfig.json            # Strict TypeScript configuration
+├── types.ts                 # TypeScript type definitions and interfaces
+├── vite.config.ts           # Vite build configuration with Tailwind v4 & React plugin
+└── vite-env.d.ts            # Vite client environment type declarations
 ```
 
 ---
@@ -79,42 +180,73 @@ VisionVoice/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js**: v18.0.0 or higher.
-- **API Key**: An [OpenRouter API Key](https://openrouter.ai/keys) or [Google Gemini API Key](https://aistudio.google.com/app/apikey).
+* **Node.js**: v18.0.0 or higher.
+* **API Key**: An [OpenRouter API Key](https://openrouter.ai/keys) or [Google AI Studio Key](https://aistudio.google.com/app/apikey).
 
-### Installation & Local Run
+### Installation
 
-1. **Clone the Repository**
+1. **Clone the repository:**
    ```bash
-   git clone https://github.com/vikasmukhiya1999/VisionVoice---Multilingual-Visual-Aid-for-the-Visually-Impaired.git
-   cd VisionVoice---Multilingual-Visual-Aid-for-the-Visually-Impaired
+   git clone git@github.com:DevCodeHub99/vision-voice-ai.git
+   cd vision-voice-ai
    ```
 
-2. **Install Dependencies**
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-3. **Launch Local Server**
+3. **Start the local development server:**
    ```bash
    npm run dev
    ```
+   Open `http://localhost:5173/` in your browser.
 
-4. **Configure Key**
-   - Tap the **Settings (gear icon)** at the top right of the application.
-   - Enter your OpenRouter or Google Gemini API key and tap **Save Settings**.
+4. **Configure your API Key:**
+   - Click the **Setup Key** pill or **Settings gear icon** in the top right.
+   - Choose your provider (**OpenRouter** or **Google Gemini**), paste your key, and tap **Save Settings**.
+
+---
+
+## 🧪 Testing & Verification
+
+VisionVoice features a deterministic Vitest test suite covering security, services, voice parsing, image processing, and error recovery:
+
+```bash
+# Run all unit and integration test suites
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run TypeScript strict type-checking
+npm run typecheck
+
+# Build optimized production bundle
+npm run build
+```
 
 ---
 
 ## 🌐 Browser Compatibility
-- **Camera Stream**: Requires HTTPS or localhost for `navigator.mediaDevices.getUserMedia`.
-- **Text-To-Speech (TTS)**: Native Web Speech API supported across Chrome, Safari, Edge, and Firefox.
-- **Vibration Haptics**: Supported on Android / Mobile Chrome browsers.
+
+| Feature | Chrome / Edge | Safari (iOS / macOS) | Firefox | Samsung Internet |
+| :--- | :---: | :---: | :---: | :---: |
+| **WebRTC Camera (`getUserMedia`)** | ✅ Yes | ✅ Yes (14.3+) | ✅ Yes | ✅ Yes |
+| **Speech Synthesis (TTS)** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Speech Recognition (Voice Commands)** | ✅ Yes | ⚠️ WebKit (limited) | ⚠️ Partial | ✅ Yes |
+| **Haptic Feedback (`vibrate`)** | ✅ Yes (Android) | ❌ Unsupported by Apple | ✅ Yes (Android) | ✅ Yes |
+| **PWA Installation & Offline** | ✅ Yes | ✅ Add to Home Screen | ✅ Yes | ✅ Yes |
+| **Web Share API (`navigator.share`)** | ✅ Yes | ✅ Yes | ⚠️ Mobile only | ✅ Yes |
 
 ---
 
+## 📄 License
+
+This project is open-source under the terms of the [MIT License](LICENSE).
+
 <div align="center">
 
-Built with ❤️ for an accessible world.
+Built with ❤️ for a more accessible, inclusive world.
 
 </div>

@@ -63,4 +63,77 @@ describe('geminiService Security & Header Authentication', () => {
             expect(result.error).toContain("must start with 'AIzaSy...'");
         }
     });
+
+    it('should cascade to gemini-2.5-flash-lite if gemini-2.5-flash fails with 503 service unavailable', async () => {
+        const fakeApiKey = 'AIzaSyFallbackKey777888';
+        const mockFetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 503,
+                statusText: 'Service Unavailable',
+                json: async () => ({ error: { message: 'High load on primary flash' } })
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    candidates: [
+                        {
+                            content: {
+                                parts: [{ text: 'Flash Lite succeeded: A white ceramic mug.' }]
+                            }
+                        }
+                    ]
+                })
+            });
+
+        vi.stubGlobal('fetch', mockFetch);
+
+        const result = await generateGeminiDescription(
+            'fakeBase64',
+            'image/jpeg',
+            Task.DESCRIBE,
+            'English',
+            fakeApiKey
+        );
+
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockFetch.mock.calls[0][0]).toContain('gemini-2.5-flash');
+        expect(mockFetch.mock.calls[1][0]).toContain('gemini-2.5-flash-lite');
+
+        expect(result).toEqual({
+            success: true,
+            text: 'Flash Lite succeeded: A white ceramic mug.'
+        });
+    });
+
+    it('should strip safety classification and code fences from Gemini responses', async () => {
+        const fakeApiKey = 'AIzaSyCleanTextKey999';
+        const mockFetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                candidates: [
+                    {
+                        content: {
+                            parts: [{ text: 'User Safety: safe\n```\nSign on the door says: Emergency Exit Only.\n```' }]
+                        }
+                    }
+                ]
+            })
+        });
+
+        vi.stubGlobal('fetch', mockFetch);
+
+        const result = await generateGeminiDescription(
+            'fakeBase64',
+            'image/jpeg',
+            Task.READ,
+            'English',
+            fakeApiKey
+        );
+
+        expect(result).toEqual({
+            success: true,
+            text: 'Sign on the door says: Emergency Exit Only.'
+        });
+    });
 });

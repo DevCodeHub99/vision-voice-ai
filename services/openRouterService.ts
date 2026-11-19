@@ -117,5 +117,3 @@ export const generateOpenRouterDescription = async (
         error: sanitizeErrorMessage(rawError)
     };
 };
-
-export const generateDescription = generateOpenRouterDescription;

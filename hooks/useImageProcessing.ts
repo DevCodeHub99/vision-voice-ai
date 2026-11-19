@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { generateDescription } from '../services/aiService';
-import { Task, LanguageOption, UserSettings } from '../types';
+import { Task, UserSettings } from '../types';
 import { LANGUAGES } from '../constants';
 
 interface UseImageProcessingProps {
@@ -25,7 +25,6 @@ interface UseImageProcessingProps {
  */
 export const useImageProcessing = ({ language, userSettings, onStartProcessing, onSuccess, onError }: UseImageProcessingProps) => {
     const [image, setImage] = useState<string | null>(null);
-    const [imageMimeType, setImageMimeType] = useState<string | null>(null);
     const [output, setOutput] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -39,7 +38,6 @@ export const useImageProcessing = ({ language, userSettings, onStartProcessing, 
      */
     const processImage = async (imgData: string, mimeType: string, task: Task) => {
         setImage(imgData);
-        setImageMimeType(mimeType);
         setOutput('');
         setError(null);
         setIsLoading(true);
@@ -67,7 +65,7 @@ export const useImageProcessing = ({ language, userSettings, onStartProcessing, 
                 setError(result.error);
                 onError(result.error);
             }
-        } catch (e) {
+        } catch {
             const errorMsg = "Something went wrong during image processing.";
             setError(errorMsg);
             setIsLoading(false);

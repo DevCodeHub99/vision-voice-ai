@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { LanguageOption, UserSettings } from '../types';
+import { UserSettings } from '../types';
 import { LANGUAGES } from '../constants';
 
 interface HeaderProps {
@@ -44,7 +44,7 @@ const Header = memo(({
                         className="bg-transparent text-white font-medium text-xs sm:text-sm outline-none appearance-none cursor-pointer pr-1"
                         aria-label="Application Language"
                     >
-                        {LANGUAGES.map((lang: LanguageOption) => (
+                        {LANGUAGES.map((lang) => (
                             <option key={lang.code} value={lang.code} className="bg-slate-900 text-white">{lang.name}</option>
                         ))}
                     </select>
