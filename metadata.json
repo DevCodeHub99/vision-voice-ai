@@ -1,7 +1,0 @@
-{
-  "name": "VisionVoice",
-  "description": "A modern, multilingual visual aid for the visually impaired, powered by AI.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
