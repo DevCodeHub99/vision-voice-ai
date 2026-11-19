@@ -34,16 +34,16 @@ describe('Model Presets & Constants Integrity', () => {
         expect(uniqueIds.size).toBe(ids.length);
     });
 
-    it('should include specialized OCR model qwen/qwen2.5-vl-7b-instruct:free', () => {
-        const ocrModel = OPENROUTER_PRESET_MODELS.find(m => m.id === 'qwen/qwen2.5-vl-7b-instruct:free');
-        expect(ocrModel).toBeDefined();
-        expect(ocrModel?.badge).toBe('Top OCR');
+    it('should include high-speed active model inclusionai/ling-3.2-flash:free', () => {
+        const fastModel = OPENROUTER_PRESET_MODELS.find(m => m.id === 'inclusionai/ling-3.2-flash:free');
+        expect(fastModel).toBeDefined();
+        expect(fastModel?.badge).toBe('Fast');
     });
 
-    it('should include lightweight edge vision model meta-llama/llama-3.2-11b-vision-instruct:free', () => {
-        const llamaVision = OPENROUTER_PRESET_MODELS.find(m => m.id === 'meta-llama/llama-3.2-11b-vision-instruct:free');
-        expect(llamaVision).toBeDefined();
-        expect(llamaVision?.badge).toBe('Fast');
+    it('should include high-resolution Google Gemma model google/gemma-4-31b-it:free', () => {
+        const gemmaVision = OPENROUTER_PRESET_MODELS.find(m => m.id === 'google/gemma-4-31b-it:free');
+        expect(gemmaVision).toBeDefined();
+        expect(gemmaVision?.badge).toBe('High Res');
     });
 
     it('should configure concise non-filler prompt templates for visual impairment assistance', () => {

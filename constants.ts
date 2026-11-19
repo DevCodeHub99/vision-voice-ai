@@ -29,44 +29,26 @@ export const OPENROUTER_PRESET_MODELS: ModelPreset[] = [
   { 
     id: 'openrouter/free', 
     name: 'OpenRouter Auto Free (Recommended)', 
-    description: 'Auto-routes to the best active free multimodal model matching your image', 
+    description: 'Auto-routes to the best active healthy free vision model (Zero Cost)', 
     badge: 'Recommended' 
   },
   { 
-    id: 'qwen/qwen2.5-vl-7b-instruct:free', 
-    name: 'Qwen 2.5 VL 7B Instruct (Top OCR)', 
-    description: 'Specialized vision-language model for OCR, text extraction, signs, and fine detail', 
-    badge: 'Top OCR' 
-  },
-  { 
-    id: 'meta-llama/llama-3.2-11b-vision-instruct:free', 
-    name: 'Meta Llama 3.2 11B Vision (Fast)', 
-    description: 'High-speed edge vision model for rapid scene descriptions and safety alerts', 
+    id: 'inclusionai/ling-3.2-flash:free', 
+    name: 'inclusionAI Ling 3.2 Flash (Fast Free)', 
+    description: 'High-speed vision-language model with rapid OCR and scene narration', 
     badge: 'Fast' 
   },
   { 
     id: 'google/gemma-4-31b-it:free', 
     name: 'Google Gemma 4 31B Vision', 
-    description: 'Google DeepMind open-weights multimodal model with high-resolution image reasoning', 
+    description: 'DeepMind open multimodal vision model with high-resolution image reasoning', 
     badge: 'High Res' 
-  },
-  { 
-    id: 'nvidia/nemotron-3.5-super-vl:free', 
-    name: 'NVIDIA Nemotron 3.5 Super VL', 
-    description: 'Massive 1M-token context vision model for complex spatial scenes', 
-    badge: '1M Context' 
   },
   { 
     id: 'google/gemma-4-26b-a4b-it:free', 
     name: 'Google Gemma 4 26B Vision', 
-    description: 'Fast multimodal vision model optimized for real-time visual assistance', 
+    description: 'Fast multimodal vision model optimized for continuous visual assistance', 
     badge: 'Multimodal' 
-  },
-  { 
-    id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', 
-    name: 'NVIDIA Nemotron Omni 30B', 
-    description: 'Omni multimodal perception with step-by-step spatial reasoning', 
-    badge: 'Reasoning' 
   },
   { 
     id: 'custom', 

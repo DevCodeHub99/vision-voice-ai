@@ -117,16 +117,13 @@ VisionVoice is strictly designed for **multimodal vision tasks** (scene narratio
 ### OpenRouter (Free Multimodal Tier)
 All preset OpenRouter models are 100% free (`$0` input / `$0` output tokens) and purpose-built for visual understanding:
 
-| Model ID | Specialization | Role in VisionVoice |
-|---|---|---|
-| **`openrouter/free`** *(Default)* | Auto Free Vision Router | Automatically filters and routes to the best active free model with image understanding. Never gets locked out by single-model rate limits. |
-| **`qwen/qwen2.5-vl-7b-instruct:free`** | Top Vision-Language OCR | Flagship open vision model from Alibaba; best-in-class for reading street signs, food labels, medicine bottles, and fine text. |
-| **`meta-llama/llama-3.2-11b-vision-instruct:free`** | Fast Edge Vision | Meta's mobile-optimized vision model; lowest latency for immediate obstacle awareness and scene descriptions. |
-| **`google/gemma-4-31b-it:free`** | High-Res Reasoning | Google DeepMind open-weights multimodal model; high visual fidelity for intricate spatial layouts. |
-| **`nvidia/nemotron-3.5-super-vl:free`** | 1M Context Vision MoE | NVIDIA vision mixture-of-experts model with 1M context; excels at multi-object spatial mapping. |
-| **`google/gemma-4-26b-a4b-it:free`** | Rapid Vision | Fast multimodal inference for continuous surroundings checks. |
-| **`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free`** | Spatial Reasoning | Step-by-step perception reasoning for navigating complex indoor/outdoor obstacles. |
-| **`custom`** | User-Provided Vision Model | Enter any valid OpenRouter model ID (e.g. `thinkingmachines/inkling-2-small:free`). |
+| Model ID | Specialization | Role in VisionVoice | Live Status |
+|---|---|---|---|
+| **`openrouter/free`** *(Default)* | Auto Free Vision Router | Automatically filters and routes to the best active free model with image understanding. Never gets locked out by single-model rate limits. | 🟢 Active (HTTP 200) |
+| **`inclusionai/ling-3.2-flash:free`** | Fast Free Vision | High-speed multimodal model with instant OCR text readout and spatial descriptions. | 🟢 Active (HTTP 200) |
+| **`google/gemma-4-31b-it:free`** | High-Res Reasoning | Google DeepMind open-weights multimodal model; high visual fidelity for intricate spatial layouts. | 🟡 Active (Shared pool rate limits apply) |
+| **`google/gemma-4-26b-a4b-it:free`** | Rapid Vision | Fast multimodal vision model optimized for real-time visual assistance. | 🟡 Active (Shared pool rate limits apply) |
+| **`custom`** | User-Provided Vision Model | Enter any valid OpenRouter model ID (e.g. `inclusionai/ling-3.2-flash:free`). | Dependent on user ID |
 
 > [!TIP]
 > **Why no text-only models?** General text models (like standard Llama 3 8B or Mistral 7B) cannot process visual tokens and will return `400 Bad Request`. VisionVoice only connects to models that natively support image understanding.
