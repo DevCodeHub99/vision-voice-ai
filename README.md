@@ -6,6 +6,7 @@
 
 [![Live Demo](https://img.shields.io/badge/Demo-visionvoiceai.vercel.app-7C3AED?style=for-the-badge&logo=vercel&logoColor=white)](https://visionvoiceai.vercel.app/)
 [![PWA Ready](https://img.shields.io/badge/PWA-Installable_Offline-059669?style=for-the-badge&logo=pwa&logoColor=white)](https://visionvoiceai.vercel.app/)
+[![CI](https://github.com/DevCodeHub99/vision-voice-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/DevCodeHub99/vision-voice-ai/actions/workflows/ci.yml)
 
 [![React](https://img.shields.io/badge/React-19.1.1-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
