@@ -64,13 +64,13 @@ flowchart TD
 ## ✨ Key Capabilities & Features
 
 ### 🔐 Multi-Provider BYOK & Hardened Client Security
-- **4 Free-Tier BYOK Providers (No Card Required)**: Seamlessly switch between **Google AI Studio (`AIzaSy...`)**, **OpenRouter (`sk-or-v1-...`)**, **Groq Cloud (`gsk_...`)**, and **Rapid Router (`sk-rr-v1-...`)**, with per-provider preset and custom model preferences.
+- **4 Free-Tier BYOK Providers (No Card Required)**: Seamlessly switch between **Google AI Studio (`AQ....` / `AIza...`)**, **OpenRouter (`sk-or-v1-...`)**, **Groq Cloud (`gsk_...`)**, and **Rapid Router (`sk-rr-v1-...`)**, with per-provider preset and custom model preferences.
 - **Resilient Fallback Cascades**: If the primary model fails with a transient 500 error or rate limit, requests automatically cascade to fallback models and across any other configured providers.
 - **Fail-Fast Client Protection**: Immediate rejection on HTTP 401/402/403 errors prevents 120-second request freezes.
 - **Header-Based Authentication**: Google Gemini requests use official `x-goog-api-key` headers; API keys never appear in URL query parameters.
 - **XOR Salt Obfuscation**: Keys saved to browser storage are XOR-obfuscated with a client salt to deter casual DevTools inspection.
 - **Strict Content Security Policy (CSP)**: `connect-src` is strictly locked down to `'self'`, `https://openrouter.ai`, `https://generativelanguage.googleapis.com`, `https://api.groq.com`, and `https://rapidrouter.ai`, with `object-src 'none'` and `base-uri 'self'`.
-- **Automated Error Redaction**: Global regex scrubbing masks key signatures (`sk-or-v1-***`, `sk-rr-v1-***`, `sk-***`, `AIzaSy***`, `gsk_***`, `key=***`, `Bearer ***`) across all console logs and UI error sheets.
+- **Automated Error Redaction**: Global regex scrubbing masks key signatures (`AQ.***`, `AIzaSy***`, `sk-or-v1-***`, `sk-rr-v1-***`, `sk-***`, `gsk_***`, `key=***`, `Bearer ***`) across all console logs and UI error sheets.
 
 ### 🎙️ Hands-Free Multilingual Voice Commands
 - **Continuous Voice Control**: Execute hands-free actions across 8 languages:

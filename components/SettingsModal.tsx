@@ -35,7 +35,8 @@ const PROVIDER_UI: Record<AIProvider, ProviderUIConfig> = {
         icon: 'fa-brands fa-google',
         activeClass: 'bg-blue-600 text-white shadow-lg shadow-blue-950/50',
         keyLabel: 'Google Gemini API Key',
-        placeholder: 'AIzaSy...',
+
+        placeholder: 'AQ.... or AIzaSy...',
         keyHelpUrl: 'https://aistudio.google.com/app/apikey',
         keyHelpText: 'Google AI Studio',
         linkColorClass: 'text-blue-400 hover:text-blue-300',

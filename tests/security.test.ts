@@ -52,11 +52,15 @@ describe('Security Utilities', () => {
             assert.ok(sanitized.includes('sk-or-v1-***'));
         });
 
-        it('should scrub Gemini API keys from error messages', () => {
+        it('should scrub Google Gemini AQ. and AIzaSy API keys from error messages', () => {
             const err = 'Google API error at url https://generativelanguage.googleapis.com?key=AIzaSyA123_456-test';
+            const aqErr = 'Gemini auth error for key AQ.ExampleTestKey_123.456';
             const sanitized = sanitizeErrorMessage(err);
+            const sanitizedAq = sanitizeErrorMessage(aqErr);
             assert.equal(sanitized.includes('AIzaSyA123_456-test'), false);
             assert.ok(sanitized.includes('key=***'));
+            assert.equal(sanitizedAq.includes('AQ.ExampleTestKey_123.456'), false);
+            assert.ok(sanitizedAq.includes('AQ.***'));
         });
 
         it('should scrub Bearer authentication headers', () => {

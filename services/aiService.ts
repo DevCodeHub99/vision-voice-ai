@@ -1,5 +1,6 @@
 import { AIProvider, AnalysisResult, Task, UserSettings } from '../types';
 import { PROVIDER_ORDER } from '../constants';
+import { isValidGeminiKey } from '../utils/security';
 import { generateOpenRouterDescription } from './openRouterService';
 import { generateGeminiDescription } from './geminiService';
 import { generateGroqDescription } from './groqService';
@@ -39,7 +40,7 @@ export const hasValidProviderKey = (provider: AIProvider, userSettings?: UserSet
     const key = getProviderKey(provider, userSettings)?.trim();
     if (!key) return false;
     if (provider === 'gemini') {
-        return key.startsWith('AIzaSy');
+        return isValidGeminiKey(key);
     }
     return true;
 };

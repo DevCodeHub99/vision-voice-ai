@@ -47,6 +47,15 @@ export const sanitizeKeyInput = (key: string | undefined): string => {
 };
 
 /**
+ * Validates Google AI Studio / Gemini API key prefixes.
+ * Supports current authorization keys ("AQ....") and legacy standard keys ("AIza...").
+ */
+export const isValidGeminiKey = (key: string): boolean => {
+    const cleaned = sanitizeKeyInput(key);
+    return cleaned.startsWith('AQ.') || cleaned.startsWith('AIza');
+};
+
+/**
  * Sanitizes error messages to guarantee NO API key patterns, headers, or query parameters leak in logs or UI.
  */
 export const sanitizeErrorMessage = (error: unknown): string => {
@@ -57,7 +66,9 @@ export const sanitizeErrorMessage = (error: unknown): string => {
     message = message.replace(/sk-or-v1-[A-Za-z0-9_-]+/g, 'sk-or-v1-***');
     message = message.replace(/sk-rr-v1-[A-Za-z0-9_-]+/g, 'sk-rr-v1-***');
     message = message.replace(/\bsk-[A-Za-z0-9_-]{8,}/g, 'sk-***');
+    message = message.replace(/AQ\.[A-Za-z0-9._-]+/g, 'AQ.***');
     message = message.replace(/AIzaSy[A-Za-z0-9_-]+/g, 'AIzaSy***');
+    message = message.replace(/AIza[A-Za-z0-9_-]+/g, 'AIza***');
     message = message.replace(/gsk_[A-Za-z0-9_-]+/g, 'gsk_***');
     message = message.replace(/key=[A-Za-z0-9_-]+/g, 'key=***');
     message = message.replace(/(x-goog-api-key|api_key)([=:\s]+)[A-Za-z0-9_-]+/gi, '$1$2***');

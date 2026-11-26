@@ -53,7 +53,33 @@ describe('geminiService Security & Header Authentication', () => {
         assert.deepEqual(body.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
     });
 
-    it('should reject invalid keys that do not start with AIzaSy', async () => {
+    it('should accept modern Google AI Studio AQ. keys via x-goog-api-key header', async () => {
+        const fakeAqKey = 'AQ.ExampleTestKey1234567890_AbCdEf';
+        const mockFetch = mock.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                candidates: [{ content: { parts: [{ text: 'Front door ahead.' }] } }]
+            })
+        }));
+
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+        const result = await generateGeminiDescription(
+            'fakeBase64',
+            'image/jpeg',
+            Task.DESCRIBE,
+            'English',
+            fakeAqKey,
+            'gemini-3.8-flash'
+        );
+
+        assert.equal(result.success, true);
+        const [, requestOptions] = mockFetch.mock.calls[0].arguments as unknown as [string, RequestInit];
+        const headers = requestOptions.headers as Record<string, string>;
+        assert.equal(headers['x-goog-api-key'], fakeAqKey);
+    });
+
+    it('should reject invalid keys that do not start with AQ. or AIza', async () => {
         const result = await generateGeminiDescription(
             'fakeBase64',
             'image/jpeg',
@@ -65,7 +91,7 @@ describe('geminiService Security & Header Authentication', () => {
 
         assert.equal(result.success, false);
         if (!result.success) {
-            assert.ok(result.error.includes("must start with 'AIzaSy...'"));
+            assert.ok(result.error.includes("must start with 'AQ.' or 'AIza...'"));
         }
     });
 

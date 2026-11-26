@@ -1,6 +1,6 @@
 import { Task, AnalysisResult } from '../types';
 import { PROMPT_TEMPLATES, DEFAULT_GEMINI_CASCADE, AI_SYSTEM_INSTRUCTION } from '../constants';
-import { sanitizeKeyInput, sanitizeErrorMessage, cleanAIResponseText } from '../utils/security';
+import { sanitizeKeyInput, sanitizeErrorMessage, cleanAIResponseText, isValidGeminiKey } from '../utils/security';
 
 const GEMINI_MODEL_ID_REGEX = /^[a-zA-Z0-9._-]+$/;
 
@@ -48,14 +48,14 @@ export const generateGeminiDescription = async (
     if (!apiKey) {
         return {
             success: false,
-            error: "No Google Gemini API key configured. Please click Settings (gear icon at top right) and enter your Gemini API key (starting with 'AIzaSy...')."
+            error: "No Google Gemini API key configured. Please click Settings (gear icon at top right) and enter your Gemini API key (starting with 'AQ.' or 'AIza...')."
         };
     }
 
-    if (!apiKey.startsWith("AIzaSy")) {
+    if (!isValidGeminiKey(apiKey)) {
         return {
             success: false,
-            error: "Invalid Gemini API key. API keys from Google AI Studio must start with 'AIzaSy...'. Get a key at https://aistudio.google.com/app/apikey."
+            error: "Invalid Gemini API key. API keys from Google AI Studio must start with 'AQ.' or 'AIza...'. Get a key at https://aistudio.google.com/app/apikey."
         };
     }
 

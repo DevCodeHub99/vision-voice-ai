@@ -146,7 +146,7 @@ describe('aiService Dispatcher', () => {
         });
     });
 
-    it('should fallback to Gemini when OpenRouter fails and Gemini key exists', async () => {
+    it('should fallback to Gemini when OpenRouter fails and an AQ. or AIza Gemini key exists', async () => {
         mockOpenRouter.mock.mockImplementationOnce(async () => ({
             success: false,
             error: 'OpenRouter rate limit'
@@ -159,7 +159,7 @@ describe('aiService Dispatcher', () => {
         const result = await generateDescription('fakeBase64', 'image/jpeg', Task.READ, 'English', {
             provider: 'openrouter',
             openRouterKey: 'sk-or-v1-primary-key',
-            geminiKey: 'AIzaSyBackupKey456',
+            geminiKey: 'AQ.ExampleBackupKey456',
             model: 'openrouter/free',
             rememberKey: true
         }, executors);
