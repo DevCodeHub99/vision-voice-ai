@@ -12,6 +12,7 @@ build/
 # Testing & Coverage
 coverage/
 .vitest/
+.test-dist/
 
 # Logs
 logs/

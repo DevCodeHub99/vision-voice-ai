@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback } from 'react';
+import { memo, useState, useRef, useCallback, useEffect } from 'react';
 import { Task } from '../types';
 
 interface ResultSheetProps {
@@ -10,7 +10,7 @@ interface ResultSheetProps {
     isSpeaking: boolean;
     onReset: () => void;
     onToggleSpeech: () => void;
-    onCopy: () => void;
+    onCopy: () => Promise<boolean> | boolean | void;
     onOpenSettings?: () => void;
 }
 
@@ -28,6 +28,9 @@ const ResultSheet = memo(({
 }: ResultSheetProps) => {
     const [copied, setCopied] = useState(false);
     const touchStartY = useRef<number | null>(null);
+    const copyTimerRef = useRef<number | null>(null);
+
+    const isOpen = Boolean(image);
 
     const isKeyError = Boolean(
         error && (
@@ -38,6 +41,14 @@ const ResultSheet = memo(({
             error.toLowerCase().includes('403')
         )
     );
+
+    useEffect(() => {
+        return () => {
+            if (copyTimerRef.current !== null) {
+                clearTimeout(copyTimerRef.current);
+            }
+        };
+    }, []);
 
     // Touch gesture to swipe down and dismiss
     const handleTouchStart = (e: React.TouchEvent) => {
@@ -58,10 +69,19 @@ const ResultSheet = memo(({
         touchStartY.current = null;
     };
 
-    const handleCopyClick = useCallback(() => {
-        onCopy();
+    const handleCopyClick = useCallback(async () => {
+        const succeeded = await onCopy();
+        if (succeeded === false) {
+            return;
+        }
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (copyTimerRef.current !== null) {
+            clearTimeout(copyTimerRef.current);
+        }
+        copyTimerRef.current = window.setTimeout(() => {
+            setCopied(false);
+            copyTimerRef.current = null;
+        }, 2000);
     }, [onCopy]);
 
     const handleShare = useCallback(async () => {
@@ -80,13 +100,15 @@ const ResultSheet = memo(({
     return (
         <div
             className={`fixed inset-x-0 bottom-0 z-40 transform transition-transform duration-500 ease-out flex flex-col max-h-[88vh] ${
-                image ? 'translate-y-0' : 'translate-y-full pointer-events-none'
+                isOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'
             }`}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             role="dialog"
             aria-modal="false"
+            aria-hidden={!isOpen}
+            inert={!isOpen ? true : undefined}
             aria-label={task === Task.DESCRIBE ? "Scene description result" : "Text recognition result"}
         >
             {/* Drag Handle Area */}
@@ -125,7 +147,6 @@ const ResultSheet = memo(({
                 <div className="flex-grow overflow-y-auto px-5 sm:px-6 py-4 overscroll-contain" aria-live="polite" role="status">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center space-y-5 py-10">
-                            {/* Multimodal pulse loader */}
                             <div className="relative w-16 h-16 flex items-center justify-center">
                                 <div className="absolute inset-0 rounded-full bg-violet-600/30 animate-ping"></div>
                                 <div className="w-12 h-12 rounded-full border-3 border-violet-500 border-t-transparent animate-spin"></div>

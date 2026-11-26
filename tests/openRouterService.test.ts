@@ -1,16 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, afterEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
 import { generateOpenRouterDescription } from '../services/openRouterService';
 import { Task } from '../types';
 
 describe('openRouterService', () => {
-    const originalFetch = global.fetch;
-
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+    const originalFetch = globalThis.fetch;
 
     afterEach(() => {
-        global.fetch = originalFetch;
+        globalThis.fetch = originalFetch;
     });
 
     it('should return error when no API key is provided', async () => {
@@ -22,22 +19,22 @@ describe('openRouterService', () => {
             ''
         );
 
-        expect(result.success).toBe(false);
+        assert.equal(result.success, false);
         if (!result.success) {
-            expect(result.error).toContain('No OpenRouter API key configured');
+            assert.ok(result.error.includes('No OpenRouter API key configured'));
         }
     });
 
     it('should send correct Authorization headers, HTTP-Referer and X-Title', async () => {
-        const mockFetch = vi.fn().mockResolvedValue({
+        const mockFetch = mock.fn(async () => ({
             ok: true,
             json: async () => ({
                 choices: [
                     { message: { content: 'A brown dog sitting on the grass.' } }
                 ]
             })
-        });
-        global.fetch = mockFetch;
+        }));
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
 
         const result = await generateOpenRouterDescription(
             'mockBase64String',
@@ -47,30 +44,31 @@ describe('openRouterService', () => {
             'sk-or-v1-my-secret-key'
         );
 
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-        const [url, options] = mockFetch.mock.calls[0];
-        expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
-        expect(options.method).toBe('POST');
-        expect(options.headers['Authorization']).toBe('Bearer sk-or-v1-my-secret-key');
-        expect(options.headers['X-Title']).toBe('VisionVoice');
-        expect(options.headers['Content-Type']).toBe('application/json');
+        assert.equal(mockFetch.mock.callCount(), 1);
+        const [url, options] = mockFetch.mock.calls[0].arguments as unknown as [string, RequestInit];
+        const headers = options.headers as Record<string, string>;
+        assert.equal(url, 'https://openrouter.ai/api/v1/chat/completions');
+        assert.equal(options.method, 'POST');
+        assert.equal(headers['Authorization'], 'Bearer sk-or-v1-my-secret-key');
+        assert.equal(headers['X-Title'], 'VisionVoice');
+        assert.equal(headers['Content-Type'], 'application/json');
 
-        expect(result).toEqual({
+        assert.deepEqual(result, {
             success: true,
             text: 'A brown dog sitting on the grass.'
         });
     });
 
     it('should fail fast on 401 Unauthorized without cascading through all models', async () => {
-        const mockFetch = vi.fn().mockResolvedValue({
+        const mockFetch = mock.fn(async () => ({
             ok: false,
             status: 401,
             statusText: 'Unauthorized',
             json: async () => ({
                 error: { message: 'Invalid API key provided' }
             })
-        });
-        global.fetch = mockFetch;
+        }));
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
 
         const result = await generateOpenRouterDescription(
             'mockBase64',
@@ -80,25 +78,24 @@ describe('openRouterService', () => {
             'sk-or-v1-bad-key'
         );
 
-        // Crucial behavior check: Should only call fetch ONCE, not 4 times
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-        expect(result.success).toBe(false);
+        assert.equal(mockFetch.mock.callCount(), 1);
+        assert.equal(result.success, false);
         if (!result.success) {
-            expect(result.error).toContain('401');
-            expect(result.error).toContain('Invalid API key provided');
+            assert.ok(result.error.includes('401'));
+            assert.ok(result.error.includes('Invalid API key provided'));
         }
     });
 
     it('should fail fast on 402 Payment Required without cascading through all models', async () => {
-        const mockFetch = vi.fn().mockResolvedValue({
+        const mockFetch = mock.fn(async () => ({
             ok: false,
             status: 402,
             statusText: 'Payment Required',
             json: async () => ({
                 error: { message: 'Insufficient credits on account' }
             })
-        });
-        global.fetch = mockFetch;
+        }));
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
 
         const result = await generateOpenRouterDescription(
             'mockBase64',
@@ -108,32 +105,36 @@ describe('openRouterService', () => {
             'sk-or-v1-no-credits-key'
         );
 
-        // Crucial check: Must not freeze user for 120s trying fallback models
-        expect(mockFetch).toHaveBeenCalledTimes(1);
-        expect(result.success).toBe(false);
+        assert.equal(mockFetch.mock.callCount(), 1);
+        assert.equal(result.success, false);
         if (!result.success) {
-            expect(result.error).toContain('402');
-            expect(result.error).toContain('Insufficient credits');
+            assert.ok(result.error.includes('402'));
+            assert.ok(result.error.includes('Insufficient credits'));
         }
     });
 
     it('should cascade to the next model when first model encounters a transient 500 server error', async () => {
-        const mockFetch = vi.fn()
-            .mockResolvedValueOnce({
-                ok: false,
-                status: 500,
-                statusText: 'Internal Server Error',
-                json: async () => ({ error: { message: 'Model provider overloaded' } })
-            })
-            .mockResolvedValueOnce({
+        let callIndex = 0;
+        const mockFetch = mock.fn(async () => {
+            callIndex += 1;
+            if (callIndex === 1) {
+                return {
+                    ok: false,
+                    status: 500,
+                    statusText: 'Internal Server Error',
+                    json: async () => ({ error: { message: 'Model provider overloaded' } })
+                };
+            }
+            return {
                 ok: true,
                 json: async () => ({
                     choices: [
                         { message: { content: 'Fallback model succeeded: A red stop sign.' } }
                     ]
                 })
-            });
-        global.fetch = mockFetch;
+            };
+        });
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
 
         const result = await generateOpenRouterDescription(
             'mockBase64',
@@ -143,24 +144,23 @@ describe('openRouterService', () => {
             'sk-or-v1-valid-key'
         );
 
-        // First model failed with 500 -> Second model called and succeeded
-        expect(mockFetch).toHaveBeenCalledTimes(2);
-        expect(result).toEqual({
+        assert.equal(mockFetch.mock.callCount(), 2);
+        assert.deepEqual(result, {
             success: true,
             text: 'Fallback model succeeded: A red stop sign.'
         });
     });
 
     it('should strip safety classification headers and code blocks from model response', async () => {
-        const mockFetch = vi.fn().mockResolvedValue({
+        const mockFetch = mock.fn(async () => ({
             ok: true,
             json: async () => ({
                 choices: [
                     { message: { content: 'User Safety: safe\n\n```markdown\nA clear glass bottle on a counter.\n```' } }
                 ]
             })
-        });
-        global.fetch = mockFetch;
+        }));
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
 
         const result = await generateOpenRouterDescription(
             'mockBase64',
@@ -170,9 +170,33 @@ describe('openRouterService', () => {
             'sk-or-v1-valid-key'
         );
 
-        expect(result).toEqual({
+        assert.deepEqual(result, {
             success: true,
             text: 'A clear glass bottle on a counter.'
         });
+    });
+
+    it('should cascade and throw explicit error when OpenRouter returns empty HTTP 200 responses', async () => {
+        const mockFetch = mock.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                choices: [{ message: { content: '' } }]
+            })
+        }));
+        globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+        const result = await generateOpenRouterDescription(
+            'mockBase64',
+            'image/jpeg',
+            Task.DESCRIBE,
+            'English',
+            'sk-or-v1-valid-key'
+        );
+
+        assert.equal(mockFetch.mock.callCount(), 5);
+        assert.equal(result.success, false);
+        if (!result.success) {
+            assert.ok(result.error.includes('returned an empty response'));
+        }
     });
 });

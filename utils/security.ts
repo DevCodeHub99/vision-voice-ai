@@ -12,10 +12,11 @@ const SALT = 'VV_SECURE_SALT_2026';
 export const obfuscateKey = (key: string): string => {
     if (!key) return '';
     try {
-        const charCodes = Array.from(key).map((char, index) =>
-            char.charCodeAt(0) ^ SALT.charCodeAt(index % SALT.length)
+        const bytes = new TextEncoder().encode(key);
+        const xored = Array.from(bytes, (byte, index) =>
+            byte ^ SALT.charCodeAt(index % SALT.length)
         );
-        return btoa(String.fromCharCode(...charCodes));
+        return btoa(String.fromCharCode(...xored));
     } catch {
         return '';
     }
@@ -28,10 +29,10 @@ export const deobfuscateKey = (obfuscated: string): string => {
     if (!obfuscated) return '';
     try {
         const decoded = atob(obfuscated);
-        const charCodes = Array.from(decoded).map((char, index) =>
+        const bytes = Uint8Array.from(decoded, (char, index) =>
             char.charCodeAt(0) ^ SALT.charCodeAt(index % SALT.length)
         );
-        return String.fromCharCode(...charCodes);
+        return new TextDecoder().decode(bytes);
     } catch {
         return '';
     }
@@ -52,10 +53,14 @@ export const sanitizeErrorMessage = (error: unknown): string => {
     if (!error) return 'An unknown error occurred.';
     let message = error instanceof Error ? error.message : String(error);
 
-    // Scrub key patterns
+    // Scrub key patterns (specific prefixes before generic sk- fallback)
     message = message.replace(/sk-or-v1-[A-Za-z0-9_-]+/g, 'sk-or-v1-***');
+    message = message.replace(/sk-rr-v1-[A-Za-z0-9_-]+/g, 'sk-rr-v1-***');
+    message = message.replace(/\bsk-[A-Za-z0-9_-]{8,}/g, 'sk-***');
     message = message.replace(/AIzaSy[A-Za-z0-9_-]+/g, 'AIzaSy***');
+    message = message.replace(/gsk_[A-Za-z0-9_-]+/g, 'gsk_***');
     message = message.replace(/key=[A-Za-z0-9_-]+/g, 'key=***');
+    message = message.replace(/(x-goog-api-key|api_key)([=:\s]+)[A-Za-z0-9_-]+/gi, '$1$2***');
     message = message.replace(/Bearer\s+[A-Za-z0-9_.-]+/gi, 'Bearer ***');
 
     return message;
@@ -73,6 +78,7 @@ export const cleanAIResponseText = (text: string): string => {
         .replace(/^(User|Response|Input|Output)\s*Safety\s*:\s*\w+$/gmi, '')
         .replace(/User Safety\s*:\s*\w+/gi, '')
         .replace(/Response Safety\s*:\s*\w+/gi, '')
+        .trim()
         .replace(/^```[a-z]*\n?/gi, '')
         .replace(/\n?```$/gi, '')
         .trim();

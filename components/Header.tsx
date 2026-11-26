@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { UserSettings } from '../types';
-import { LANGUAGES } from '../constants';
+import { AIProvider, UserSettings } from '../types';
+import { LANGUAGES, PROVIDER_LABELS } from '../constants';
 
 interface HeaderProps {
     language: string;
@@ -15,6 +15,19 @@ interface HeaderProps {
     onInstall?: () => void;
 }
 
+const getActiveProviderKey = (provider: AIProvider, userSettings?: UserSettings): string | undefined => {
+    switch (provider) {
+        case 'gemini':
+            return userSettings?.geminiKey;
+        case 'openrouter':
+            return userSettings?.openRouterKey;
+        case 'groq':
+            return userSettings?.groqKey;
+        case 'rapidrouter':
+            return userSettings?.rapidRouterKey;
+    }
+};
+
 const Header = memo(({
     language,
     userSettings,
@@ -27,9 +40,10 @@ const Header = memo(({
     hasInstallPrompt = false,
     onInstall
 }: HeaderProps) => {
-    const provider = userSettings?.provider || 'openrouter';
-    const activeKey = provider === 'gemini' ? userSettings?.geminiKey : userSettings?.openRouterKey;
+    const provider: AIProvider = userSettings?.provider || 'openrouter';
+    const activeKey = getActiveProviderKey(provider, userSettings);
     const hasKey = Boolean(activeKey?.trim());
+    const providerLabel = PROVIDER_LABELS[provider] || 'OpenRouter';
 
     return (
         <header className="safe-top pt-4 px-4 sm:px-6 flex flex-wrap justify-between items-center gap-2" role="banner">
@@ -103,11 +117,11 @@ const Header = memo(({
                             ? 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/50'
                             : 'border-amber-500/50 text-amber-300 hover:bg-amber-950/50 animate-pulse'
                     }`}
-                    aria-label={hasKey ? `Active provider: ${provider}. Tap to edit settings` : 'API key required. Tap to setup'}
+                    aria-label={hasKey ? `Active provider: ${providerLabel}. Tap to edit settings` : 'API key required. Tap to setup'}
                 >
                     <span className={`w-2 h-2 rounded-full mr-2 ${hasKey ? 'bg-emerald-400' : 'bg-amber-400 animate-ping'}`} aria-hidden="true"></span>
                     <span className="text-xs font-semibold tracking-wide">
-                        {hasKey ? (provider === 'gemini' ? 'Gemini' : 'OpenRouter') : 'Setup Key'}
+                        {hasKey ? providerLabel : 'Setup Key'}
                     </span>
                 </button>
 

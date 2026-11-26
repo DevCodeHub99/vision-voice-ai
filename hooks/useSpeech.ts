@@ -7,14 +7,13 @@ interface UseSpeechProps {
 
 /**
  * Custom hook to manage Text-to-Speech (TTS) functionality.
- * Provides methods for results reading and situational announcements with
- * keep-alive heartbeat support for mobile browsers (iOS Safari / Android Chrome).
- * 
- * @param props - Configuration properties.
- * @param props.language - The current BCP 47 language code for synthesized speech.
+ * Tracks both overall speaking state (`isSpeaking`, for acoustic feedback isolation)
+ * and result narration state (`isNarrating`, for UI playback controls), with
+ * keep-alive heartbeat support for mobile browsers.
  */
 export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
     const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
+    const [isNarrating, setIsNarrating] = useState<boolean>(false);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
     const keepAliveTimerRef = useRef<number | null>(null);
@@ -40,26 +39,30 @@ export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
 
     useEffect(() => {
         if (typeof window === 'undefined' || !window.speechSynthesis) return;
+        const synth = window.speechSynthesis;
 
         const updateVoices = () => {
-            const availableVoices = window.speechSynthesis.getVoices();
+            const availableVoices = synth.getVoices();
             if (availableVoices.length > 0) {
                 setVoices(availableVoices);
             }
         };
 
         updateVoices();
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = updateVoices;
+        if (typeof synth.addEventListener === 'function') {
+            synth.addEventListener('voiceschanged', updateVoices);
+        } else {
+            synth.onvoiceschanged = updateVoices;
         }
 
-        // Retry once after a brief delay for browsers that load voices asynchronously
         const timer = setTimeout(updateVoices, 300);
 
         return () => {
             clearTimeout(timer);
-            if (window.speechSynthesis) {
-                window.speechSynthesis.onvoiceschanged = null;
+            if (typeof synth.removeEventListener === 'function') {
+                synth.removeEventListener('voiceschanged', updateVoices);
+            } else {
+                synth.onvoiceschanged = null;
             }
         };
     }, []);
@@ -68,12 +71,14 @@ export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
         if (typeof window === 'undefined' || !window.speechSynthesis) return;
         window.speechSynthesis.cancel();
         stopKeepAlive();
+        setIsNarrating(false);
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
 
         utterance.onstart = () => {
             setIsSpeaking(true);
+            setIsNarrating(false);
         };
         utterance.onend = () => {
             setIsSpeaking(false);
@@ -98,7 +103,6 @@ export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
         utterance.lang = lang;
         utterance.rate = speechRate;
 
-        // Attempt to match exact language tag or prefix
         const langPrefix = lang.split('-')[0];
         const matchedVoice = voices.find((v: SpeechSynthesisVoice) => v.lang === lang) || voices.find((v: SpeechSynthesisVoice) => v.lang.startsWith(langPrefix));
         if (matchedVoice) {
@@ -107,45 +111,50 @@ export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
 
         utterance.onstart = () => {
             setIsSpeaking(true);
+            setIsNarrating(true);
             startKeepAlive();
         };
         utterance.onend = () => {
             setIsSpeaking(false);
+            setIsNarrating(false);
             stopKeepAlive();
             utteranceRef.current = null;
         };
         utterance.onerror = () => {
             setIsSpeaking(false);
+            setIsNarrating(false);
             stopKeepAlive();
             utteranceRef.current = null;
         };
 
         utteranceRef.current = utterance;
         window.speechSynthesis.speak(utterance);
-    }, [voices, startKeepAlive, stopKeepAlive]);
+    }, [voices, speechRate, startKeepAlive, stopKeepAlive]);
 
     const toggleSpeech = useCallback((text: string) => {
         if (typeof window === 'undefined' || !window.speechSynthesis) return;
+        const synth = window.speechSynthesis;
 
-        if (isSpeaking) {
-            window.speechSynthesis.pause();
+        if (isNarrating && synth.speaking && !synth.paused) {
+            synth.pause();
             setIsSpeaking(false);
+            setIsNarrating(false);
             stopKeepAlive();
-        } else {
-            if (window.speechSynthesis.paused) {
-                window.speechSynthesis.resume();
-                setIsSpeaking(true);
-                startKeepAlive();
-            } else if (text) {
-                speak(text, language);
-            }
+        } else if (synth.paused) {
+            synth.resume();
+            setIsSpeaking(true);
+            setIsNarrating(true);
+            startKeepAlive();
+        } else if (text) {
+            speak(text, language);
         }
-    }, [isSpeaking, speak, language, startKeepAlive, stopKeepAlive]);
+    }, [isNarrating, speak, language, startKeepAlive, stopKeepAlive]);
 
     const stopSpeech = useCallback(() => {
         if (typeof window !== 'undefined' && window.speechSynthesis) {
             window.speechSynthesis.cancel();
             setIsSpeaking(false);
+            setIsNarrating(false);
             stopKeepAlive();
             utteranceRef.current = null;
         }
@@ -162,6 +171,7 @@ export const useSpeech = ({ language, speechRate = 0.95 }: UseSpeechProps) => {
 
     return {
         isSpeaking,
+        isNarrating,
         speak,
         speakAnnouncement,
         toggleSpeech,

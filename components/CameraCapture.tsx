@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useState, useImperativeHandle, forwardRef, useCallback, memo } from 'react';
 import { calculateTargetDimensions } from '../utils/imageProcessor';
 
@@ -16,7 +15,6 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState<string | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
   const [retryKey, setRetryKey] = useState(0);
 
   const stopCamera = useCallback(() => {
@@ -57,9 +55,7 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
         }
 
         streamRef.current = newStream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = newStream;
-        }
+        videoRef.current.srcObject = newStream;
         setError(null);
       } catch (err) {
         if (!isCancelled) {
@@ -82,7 +78,6 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
-      // Check if video is ready
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         const { width, height } = calculateTargetDimensions(video.videoWidth, video.videoHeight);
         canvas.width = width;
@@ -92,8 +87,7 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
           context.imageSmoothingEnabled = true;
           context.imageSmoothingQuality = 'high';
           context.drawImage(video, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8); // Compress quality to 0.8
-          // Explicitly release backing store to prevent WebKit GPU memory retention
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           canvas.width = 0;
           canvas.height = 0;
           onCapture(dataUrl);
@@ -102,27 +96,33 @@ const CameraCapture = forwardRef<CameraHandle, CameraCaptureProps>(({ onCapture,
     }
   }, [onCapture]);
 
+  const handleRetry = useCallback(() => {
+    setError(null);
+    setRetryKey(k => k + 1);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     capture: handleCapture
   }));
 
   return (
     <div className="absolute inset-0 z-0 bg-black overflow-hidden" role="region" aria-label="Camera view">
-      {error ? (
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        aria-label="Live camera viewfinder"
+        className={error ? 'hidden' : 'w-full h-full object-cover opacity-80'}
+      />
+      {error && (
         <div className="flex flex-col items-center justify-center h-full text-center p-6">
-          <i className="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4"></i>
+          <i className="fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-4" aria-hidden="true"></i>
           <p className="text-red-100 font-medium">{error}</p>
-          <button onClick={() => setRetryKey(k => k + 1)} className="mt-4 px-4 py-2 bg-slate-800 rounded text-white active:scale-95 transition-transform">Retry</button>
+          <button onClick={handleRetry} className="mt-4 px-4 py-2 bg-slate-800 rounded text-white active:scale-95 transition-transform min-h-[44px]">
+            Retry
+          </button>
         </div>
-      ) : (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          aria-label="Live camera viewfinder"
-          className="w-full h-full object-cover opacity-80"
-        />
       )}
       <canvas ref={canvasRef} className="hidden" />
       {/* Dark Gradient Overlay for text readability */}

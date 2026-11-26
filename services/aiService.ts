@@ -1,82 +1,116 @@
-import { Task, AnalysisResult, UserSettings } from '../types';
+import { AIProvider, AnalysisResult, Task, UserSettings } from '../types';
+import { PROVIDER_ORDER } from '../constants';
 import { generateOpenRouterDescription } from './openRouterService';
 import { generateGeminiDescription } from './geminiService';
+import { generateGroqDescription } from './groqService';
+import { generateRapidRouterDescription } from './rapidRouterService';
+
+export type ProviderExecutor = (
+    base64Data: string,
+    mimeType: string,
+    task: Task,
+    languageName: string,
+    apiKey?: string,
+    model?: string,
+    signal?: AbortSignal
+) => Promise<AnalysisResult>;
+
+const PROVIDER_EXECUTORS: Record<AIProvider, ProviderExecutor> = {
+    gemini: generateGeminiDescription,
+    openrouter: generateOpenRouterDescription,
+    groq: generateGroqDescription,
+    rapidrouter: generateRapidRouterDescription,
+};
+
+const getProviderKey = (provider: AIProvider, userSettings?: UserSettings): string | undefined => {
+    switch (provider) {
+        case 'gemini':
+            return userSettings?.geminiKey;
+        case 'openrouter':
+            return userSettings?.openRouterKey;
+        case 'groq':
+            return userSettings?.groqKey;
+        case 'rapidrouter':
+            return userSettings?.rapidRouterKey;
+    }
+};
+
+export const hasValidProviderKey = (provider: AIProvider, userSettings?: UserSettings): boolean => {
+    const key = getProviderKey(provider, userSettings)?.trim();
+    if (!key) return false;
+    if (provider === 'gemini') {
+        return key.startsWith('AIzaSy');
+    }
+    return true;
+};
 
 /**
  * Unified AI Provider Dispatcher.
- * Automatically routes image analysis requests to the selected provider (OpenRouter or Google Gemini)
- * with intelligent cross-provider fallback logic.
- * 
- * @param base64Data - Pure base64 image data.
- * @param mimeType - MIME type of the image.
- * @param task - Current task (DESCRIBE or READ).
- * @param languageName - Name of the target language.
- * @param userSettings - Optional user configured BYOK settings.
- * 
- * @returns A promise resolving to an AnalysisResult.
+ * Routes image analysis requests to the user's configured provider and model,
+ * with automatic cross-provider failover to any other configured free-tier provider.
  */
 export const generateDescription = async (
     base64Data: string,
     mimeType: string,
     task: Task,
     languageName: string,
-    userSettings?: UserSettings
+    userSettings?: UserSettings,
+    executors: Partial<Record<AIProvider, ProviderExecutor>> = PROVIDER_EXECUTORS,
+    signal?: AbortSignal
 ): Promise<AnalysisResult> => {
-    const provider = userSettings?.provider || 'openrouter';
-
-    if (provider === 'gemini') {
-        const result = await generateGeminiDescription(
-            base64Data,
-            mimeType,
-            task,
-            languageName,
-            userSettings?.geminiKey,
-            userSettings?.model
-        );
-        if (result.success) {
-            return result;
-        }
-        // Fallback to OpenRouter if OpenRouter key is configured
-        if (userSettings?.openRouterKey?.trim()) {
-            console.warn("Gemini provider failed, checking OpenRouter fallback...", result.error);
-            return await generateOpenRouterDescription(
-                base64Data,
-                mimeType,
-                task,
-                languageName,
-                userSettings.openRouterKey,
-                undefined
-            );
-        }
-        return result;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        return {
+            success: false,
+            error: 'No internet connection detected. Multimodal vision requires network connectivity.'
+        };
     }
 
-    // Default provider: OpenRouter
-    const result = await generateOpenRouterDescription(
+    if (signal?.aborted) {
+        return { success: false, error: 'Request cancelled.' };
+    }
+
+    const resolvedExecutors = { ...PROVIDER_EXECUTORS, ...executors };
+    const primaryProvider: AIProvider = userSettings?.provider || 'openrouter';
+    const primaryModel = userSettings?.providerModels?.[primaryProvider] ?? userSettings?.model;
+
+    const primaryResult = await resolvedExecutors[primaryProvider](
         base64Data,
         mimeType,
         task,
         languageName,
-        userSettings?.openRouterKey,
-        userSettings?.model
+        getProviderKey(primaryProvider, userSettings),
+        primaryModel,
+        signal
     );
 
-    if (result.success) {
-        return result;
+    if (primaryResult.success || signal?.aborted) {
+        return primaryResult;
     }
 
-    // Fallback to Gemini if Gemini key is configured
-    if (userSettings?.geminiKey?.trim()?.startsWith("AIzaSy")) {
-        console.warn("OpenRouter provider failed, checking Gemini fallback...", result.error);
-        return await generateGeminiDescription(
+    for (const fallbackProvider of PROVIDER_ORDER) {
+        if (fallbackProvider === primaryProvider || !hasValidProviderKey(fallbackProvider, userSettings)) {
+            continue;
+        }
+        if (signal?.aborted) {
+            return { success: false, error: 'Request cancelled.' };
+        }
+
+        console.warn(`${primaryProvider} provider failed, checking ${fallbackProvider} fallback...`, primaryResult.error);
+        const fallbackModel = userSettings?.providerModels?.[fallbackProvider];
+        const fallbackResult = await resolvedExecutors[fallbackProvider](
             base64Data,
             mimeType,
             task,
             languageName,
-            userSettings.geminiKey,
-            undefined
+            getProviderKey(fallbackProvider, userSettings),
+            fallbackModel,
+            signal
         );
+
+        if (fallbackResult.success) {
+            return fallbackResult;
+        }
     }
 
-    return result;
+    return primaryResult;
 };

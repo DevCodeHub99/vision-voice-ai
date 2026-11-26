@@ -1,33 +1,44 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, afterEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
 import ErrorBoundary from '../components/ErrorBoundary';
 
 describe('ErrorBoundary', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        vi.unstubAllGlobals();
+    const originalWindow = globalThis.window;
+    const originalUtterance = globalThis.SpeechSynthesisUtterance;
+
+    afterEach(() => {
+        if (originalWindow === undefined) {
+            delete (globalThis as Record<string, unknown>).window;
+        } else {
+            globalThis.window = originalWindow;
+        }
+        if (originalUtterance === undefined) {
+            delete (globalThis as Record<string, unknown>).SpeechSynthesisUtterance;
+        } else {
+            globalThis.SpeechSynthesisUtterance = originalUtterance;
+        }
     });
 
     it('should derive state with error on getDerivedStateFromError', () => {
         const testError = new Error('Camera device crashed unexpectedly');
         const state = ErrorBoundary.getDerivedStateFromError(testError);
 
-        expect(state).toEqual({
+        assert.deepEqual(state, {
             hasError: true,
             error: testError
         });
     });
 
     it('should vocalize an announcement via window.speechSynthesis in componentDidCatch', () => {
-        const mockSpeak = vi.fn();
-        const mockCancel = vi.fn();
+        const mockSpeak = mock.fn();
+        const mockCancel = mock.fn();
 
-        const fakeWindow = {
+        (globalThis as Record<string, unknown>).window = {
             speechSynthesis: {
                 speak: mockSpeak,
                 cancel: mockCancel
             }
         };
-        vi.stubGlobal('window', fakeWindow);
 
         class MockSpeechSynthesisUtterance {
             text: string;
@@ -36,7 +47,7 @@ describe('ErrorBoundary', () => {
                 this.text = text;
             }
         }
-        vi.stubGlobal('SpeechSynthesisUtterance', MockSpeechSynthesisUtterance);
+        (globalThis as Record<string, unknown>).SpeechSynthesisUtterance = MockSpeechSynthesisUtterance;
 
         const boundary = new ErrorBoundary({ children: null });
         const testError = new Error('WebGL context loss');
@@ -44,24 +55,22 @@ describe('ErrorBoundary', () => {
 
         boundary.componentDidCatch(testError, errorInfo);
 
-        expect(mockCancel).toHaveBeenCalledTimes(1);
-        expect(mockSpeak).toHaveBeenCalledTimes(1);
+        assert.equal(mockCancel.mock.callCount(), 1);
+        assert.equal(mockSpeak.mock.callCount(), 1);
 
-        const [utterance] = mockSpeak.mock.calls[0];
-        expect(utterance.text).toContain('VisionVoice encountered an unexpected problem');
-
-        vi.unstubAllGlobals();
+        const [utterance] = mockSpeak.mock.calls[0].arguments as [MockSpeechSynthesisUtterance];
+        assert.ok(utterance.text.includes('VisionVoice encountered an unexpected problem'));
     });
 
     it('should degrade gracefully if window is undefined or speechSynthesis is unavailable', () => {
-        vi.unstubAllGlobals();
+        delete (globalThis as Record<string, unknown>).window;
 
         const boundary = new ErrorBoundary({ children: null });
         const testError = new Error('Critical failure');
         const errorInfo = { componentStack: 'at App (App.tsx:10)' };
 
-        expect(() => {
+        assert.doesNotThrow(() => {
             boundary.componentDidCatch(testError, errorInfo);
-        }).not.toThrow();
+        });
     });
 });

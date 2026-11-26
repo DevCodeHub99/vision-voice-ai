@@ -8,8 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "node scripts/run-tests.mjs",
+    "test:watch": "node scripts/run-tests.mjs --watch"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -23,8 +23,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "vitest": "^5.1.1"
+    "vite": "^6.2.0"
   },
   "allowScripts": {
     "esbuild": true

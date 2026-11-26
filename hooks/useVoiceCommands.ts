@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// SpeechRecognition type declarations for browsers
 interface SpeechRecognitionEventLike extends Event {
     resultIndex: number;
     results: {
@@ -14,6 +13,10 @@ interface SpeechRecognitionEventLike extends Event {
     };
 }
 
+interface SpeechRecognitionErrorEventLike extends Event {
+    error?: string;
+}
+
 interface SpeechRecognitionLike extends EventTarget {
     continuous: boolean;
     interimResults: boolean;
@@ -23,7 +26,7 @@ interface SpeechRecognitionLike extends EventTarget {
     abort: () => void;
     onstart: (() => void) | null;
     onend: (() => void) | null;
-    onerror: ((event: Event) => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
     onresult: ((event: SpeechRecognitionEventLike) => void) | null;
 }
 
@@ -48,8 +51,10 @@ interface CommandKeywords {
     repeat: string[];
 }
 
+const FATAL_SPEECH_ERRORS = new Set(['not-allowed', 'service-not-allowed', 'audio-capture']);
+
 // Universal English keywords always recognized as fallback across all languages
-export const UNIVERSAL_KEYWORDS: CommandKeywords = {
+const UNIVERSAL_KEYWORDS: CommandKeywords = {
     describe: ['describe', 'scene', 'look', 'what do you see', 'what is this'],
     read: ['read', 'text', 'ocr', 'words', 'document'],
     capture: ['capture', 'photo', 'picture', 'snap', 'click', 'take photo'],
@@ -57,7 +62,7 @@ export const UNIVERSAL_KEYWORDS: CommandKeywords = {
     repeat: ['repeat', 'again', 'replay', 'read again', 'once more']
 };
 
-export const MULTILINGUAL_KEYWORDS: Record<string, CommandKeywords> = {
+const MULTILINGUAL_KEYWORDS: Record<string, CommandKeywords> = {
     'hi-IN': {
         describe: ['विवरण', 'दृश्य', 'क्या है', 'बताओ', 'डिस्क्राइब', 'सामने'],
         read: ['पढ़ो', 'टेक्स्ट', 'लिखा', 'रीड', 'पढ़'],
@@ -176,10 +181,10 @@ export const useVoiceCommands = ({
 }: UseVoiceCommandsProps) => {
     const [isListening, setIsListening] = useState<boolean>(false);
     const [isSupported, setIsSupported] = useState<boolean>(false);
-    const [lastCommand, setLastCommand] = useState<string>('');
     const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
     const activeListeningRef = useRef<boolean>(false);
     const isSpeakingRef = useRef<boolean>(isSpeaking);
+    const restartTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         isSpeakingRef.current = isSpeaking;
@@ -192,17 +197,20 @@ export const useVoiceCommands = ({
         }
     }, []);
 
+    useEffect(() => {
+        if (recognitionRef.current) {
+            recognitionRef.current.lang = language || 'en-US';
+        }
+    }, [language]);
+
     const handleCommand = useCallback((transcript: string) => {
         const action = parseVoiceCommand(transcript, language);
         if (!action) return;
 
-        // Prevent acoustic feedback loops when the app itself is reading or speaking,
-        // but ALWAYS allow "stop" commands to break through and interrupt speech immediately
+        // Prevent acoustic feedback loops during TTS, but ALWAYS allow "stop" to interrupt speech immediately
         if (isSpeakingRef.current && action !== 'stop') {
             return;
         }
-
-        setLastCommand(transcript.trim());
 
         switch (action) {
             case 'describe':
@@ -229,8 +237,21 @@ export const useVoiceCommands = ({
         }
     }, [language, onDescribe, onReadText, onCapture, onStop, onRepeat, triggerHaptic, speakAnnouncement]);
 
+    const handleCommandRef = useRef(handleCommand);
+    useEffect(() => {
+        handleCommandRef.current = handleCommand;
+    }, [handleCommand]);
+
+    const clearRestartTimer = useCallback(() => {
+        if (restartTimerRef.current !== null) {
+            clearTimeout(restartTimerRef.current);
+            restartTimerRef.current = null;
+        }
+    }, []);
+
     const stopListening = useCallback(() => {
         activeListeningRef.current = false;
+        clearRestartTimer();
         if (recognitionRef.current) {
             try {
                 recognitionRef.current.stop();
@@ -239,7 +260,7 @@ export const useVoiceCommands = ({
             }
         }
         setIsListening(false);
-    }, []);
+    }, [clearRestartTimer]);
 
     const startListening = useCallback(() => {
         if (typeof window === 'undefined') return;
@@ -263,30 +284,30 @@ export const useVoiceCommands = ({
             };
 
             recognition.onresult = (event: SpeechRecognitionEventLike) => {
-                // Drop microphone inputs while the device's TTS is vocalizing to prevent self-triggering
-                if (isSpeakingRef.current) {
-                    return;
-                }
                 const current = event.resultIndex;
                 const transcript = event.results[current]?.[0]?.transcript;
                 if (transcript) {
-                    handleCommand(transcript);
+                    handleCommandRef.current(transcript);
                 }
             };
 
-            recognition.onerror = () => {
-                // Ignore transient errors
+            recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
+                if (event.error && FATAL_SPEECH_ERRORS.has(event.error)) {
+                    stopListening();
+                    speakAnnouncement("Microphone access denied or unavailable.");
+                }
             };
 
             recognition.onend = () => {
-                // If user didn't explicitly stop listening, auto-restart continuous listener with debouncing
                 if (activeListeningRef.current) {
-                    setTimeout(() => {
+                    clearRestartTimer();
+                    restartTimerRef.current = window.setTimeout(() => {
+                        restartTimerRef.current = null;
                         if (activeListeningRef.current && recognitionRef.current) {
                             try {
                                 recognitionRef.current.start();
                             } catch {
-                                // Already active or permission revoked
+                                stopListening();
                             }
                         }
                     }, 250);
@@ -304,7 +325,7 @@ export const useVoiceCommands = ({
             activeListeningRef.current = false;
             speakAnnouncement("Unable to start voice recognition.");
         }
-    }, [language, stopListening, handleCommand, triggerHaptic, speakAnnouncement]);
+    }, [language, stopListening, clearRestartTimer, triggerHaptic, speakAnnouncement]);
 
     const toggleListening = useCallback(() => {
         if (isListening) {
@@ -319,6 +340,7 @@ export const useVoiceCommands = ({
     useEffect(() => {
         return () => {
             activeListeningRef.current = false;
+            clearRestartTimer();
             if (recognitionRef.current) {
                 try {
                     recognitionRef.current.abort();
@@ -327,14 +349,11 @@ export const useVoiceCommands = ({
                 }
             }
         };
-    }, []);
+    }, [clearRestartTimer]);
 
     return {
         isListening,
         isSupported,
-        lastCommand,
-        startListening,
-        stopListening,
         toggleListening
     };
 };

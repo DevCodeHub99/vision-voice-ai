@@ -29,7 +29,7 @@ export const calculateTargetDimensions = (
     maxDimension: number = MAX_IMAGE_DIMENSION
 ): { width: number; height: number } => {
     if (width <= 0 || height <= 0) {
-        return { width: Math.max(1, width), height: Math.max(1, height) };
+        return { width: 1, height: 1 };
     }
     if (width <= maxDimension && height <= maxDimension) {
         return { width, height };
@@ -80,6 +80,8 @@ export const optimizeImage = async (
 
                 const ctx = canvas.getContext('2d');
                 if (!ctx) {
+                    canvas.width = 0;
+                    canvas.height = 0;
                     reject(new Error('Failed to acquire 2D canvas context.'));
                     return;
                 }

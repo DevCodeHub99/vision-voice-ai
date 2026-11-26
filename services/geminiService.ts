@@ -2,18 +2,38 @@ import { Task, AnalysisResult } from '../types';
 import { PROMPT_TEMPLATES, DEFAULT_GEMINI_CASCADE, AI_SYSTEM_INSTRUCTION } from '../constants';
 import { sanitizeKeyInput, sanitizeErrorMessage, cleanAIResponseText } from '../utils/security';
 
+const GEMINI_MODEL_ID_REGEX = /^[a-zA-Z0-9._-]+$/;
+
+const buildGeminiThinkingConfig = (model: string): Record<string, unknown> | undefined => {
+    if (model.startsWith('gemini-2.5-pro')) {
+        return { thinkingBudget: 128 };
+    }
+    if (model.startsWith('gemini-2.5-flash')) {
+        return { thinkingBudget: 0 };
+    }
+    if (model.startsWith('gemini-3') || model.startsWith('gemini-4')) {
+        return { thinkingLevel: 'minimal' };
+    }
+    return undefined;
+};
+
+const extractGeminiPartsText = (parts: unknown): string => {
+    if (!Array.isArray(parts)) return '';
+    return parts
+        .filter((part): part is { text: string; thought?: boolean } =>
+            typeof part === 'object'
+            && part !== null
+            && !(part as { thought?: unknown }).thought
+            && 'text' in part
+            && typeof (part as { text?: unknown }).text === 'string'
+        )
+        .map((part) => part.text)
+        .join('\n');
+};
+
 /**
  * Generates an AI-powered description or text extraction using Google Gemini REST API.
- * Uses zero external SDK dependencies for high performance and zero bundle overhead.
- * 
- * @param base64Data - Pure base64 image data string.
- * @param mimeType - MIME type of the image (e.g., 'image/jpeg', 'image/png').
- * @param task - Current task (DESCRIBE or READ).
- * @param languageName - Name of target language.
- * @param customApiKey - User-configured BYOK Gemini API key (AIzaSy...).
- * @param customModel - Optional user-configured model ID (e.g. gemini-2.5-flash).
- * 
- * @returns A promise resolving to an AnalysisResult.
+ * Uses zero external SDK dependencies and official x-goog-api-key header authentication.
  */
 export const generateGeminiDescription = async (
     base64Data: string,
@@ -21,7 +41,8 @@ export const generateGeminiDescription = async (
     task: Task,
     languageName: string,
     customApiKey?: string,
-    customModel?: string
+    customModel?: string,
+    externalSignal?: AbortSignal
 ): Promise<AnalysisResult> => {
     const apiKey = sanitizeKeyInput(customApiKey);
     if (!apiKey) {
@@ -38,20 +59,47 @@ export const generateGeminiDescription = async (
         };
     }
 
+    if (externalSignal?.aborted) {
+        return { success: false, error: 'Request cancelled.' };
+    }
+
+    const trimmedCustom = customModel?.trim();
+    if (trimmedCustom && !GEMINI_MODEL_ID_REGEX.test(trimmedCustom)) {
+        return {
+            success: false,
+            error: "Invalid Gemini model ID format. Use alphanumeric characters, dots, underscores, or hyphens only."
+        };
+    }
+
     const fullPrompt = `${PROMPT_TEMPLATES[task]} Please provide the response in ${languageName}.`;
 
-    const models = customModel?.trim()
-        ? [customModel.trim(), ...DEFAULT_GEMINI_CASCADE.filter(m => m !== customModel.trim())]
+    const models = trimmedCustom
+        ? [trimmedCustom, ...DEFAULT_GEMINI_CASCADE.filter(m => m !== trimmedCustom)]
         : DEFAULT_GEMINI_CASCADE;
 
     let lastError: Error | unknown = null;
 
     for (const model of models) {
+        if (externalSignal?.aborted) {
+            return { success: false, error: 'Request cancelled.' };
+        }
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const timeoutId = setTimeout(() => controller.abort(new Error('Request timed out')), 30000);
+        const onExternalAbort = () => controller.abort(externalSignal?.reason);
+
+        if (externalSignal) {
+            externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+        }
+
+        const cleanup = () => {
+            clearTimeout(timeoutId);
+            externalSignal?.removeEventListener('abort', onExternalAbort);
+        };
 
         try {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+            const thinkingConfig = buildGeminiThinkingConfig(model);
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -71,37 +119,56 @@ export const generateGeminiDescription = async (
                         }
                     ],
                     generationConfig: {
-                        maxOutputTokens: 300,
-                        temperature: 0.2
+                        maxOutputTokens: 1024,
+                        temperature: 0.2,
+                        ...(thinkingConfig ? { thinkingConfig } : {})
                     }
                 }),
                 signal: controller.signal
             });
 
-            clearTimeout(timeoutId);
+            cleanup();
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 const rawMsg = errorData.error?.message || `HTTP ${response.status} ${response.statusText}`;
-                throw new Error(sanitizeErrorMessage(rawMsg));
+                const cleanMsg = sanitizeErrorMessage(rawMsg);
+
+                // Fail fast on auth errors instead of retrying every fallback model
+                if (response.status === 401 || response.status === 403) {
+                    return {
+                        success: false,
+                        error: sanitizeErrorMessage(`Gemini ${response.status}: ${cleanMsg}. Please check your Gemini API key in Settings.`)
+                    };
+                }
+                throw new Error(cleanMsg);
             }
 
             const data = await response.json();
-            const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            const textResult = cleanAIResponseText(rawText || '');
+            const rawText = extractGeminiPartsText(data.candidates?.[0]?.content?.parts);
+            const textResult = cleanAIResponseText(rawText);
 
-            if (textResult) {
-                return {
-                    success: true,
-                    text: textResult
-                };
+            if (!textResult) {
+                throw new Error(`Model ${model} returned an empty response.`);
             }
+
+            return {
+                success: true,
+                text: textResult
+            };
         } catch (error) {
-            clearTimeout(timeoutId);
+            cleanup();
+            if (externalSignal?.aborted) {
+                return { success: false, error: 'Request cancelled.' };
+            }
             const isAbort = error instanceof Error && error.name === 'AbortError';
+            const isNetworkError = error instanceof TypeError;
             const errorMsg = isAbort ? `Model ${model} request timed out (30s limit).` : sanitizeErrorMessage(error);
             console.warn(`Gemini request for '${model}' failed:`, errorMsg);
             lastError = isAbort ? new Error(`Request timed out for ${model}`) : new Error(errorMsg);
+            if (isNetworkError) {
+                break;
+            }
         }
     }
 

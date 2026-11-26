@@ -32,7 +32,13 @@ interface BeforeInstallPromptEvent extends Event {
  * - Network connectivity state and PWA installation
  */
 const App: FC = () => {
-    const [task, setTask] = useState<Task>(Task.DESCRIBE);
+    const [task, setTask] = useState<Task>(() => {
+        if (typeof window !== 'undefined') {
+            const param = new URLSearchParams(window.location.search).get('task');
+            if (param === Task.READ) return Task.READ;
+        }
+        return Task.DESCRIBE;
+    });
     const [language, setLanguage] = useState<string>(LANGUAGES[0].code);
     const [activeTab, setActiveTab] = useState<'camera' | 'upload'>('camera');
     const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -46,11 +52,16 @@ const App: FC = () => {
                 const parsed = JSON.parse(saved);
                 const rawOpenRouter = parsed.openRouterKeyEnc ? deobfuscateKey(parsed.openRouterKeyEnc) : (parsed.openRouterKey || parsed.apiKey || '');
                 const rawGemini = parsed.geminiKeyEnc ? deobfuscateKey(parsed.geminiKeyEnc) : (parsed.geminiKey || '');
+                const rawGroq = parsed.groqKeyEnc ? deobfuscateKey(parsed.groqKeyEnc) : (parsed.groqKey || '');
+                const rawRapidRouter = parsed.rapidRouterKeyEnc ? deobfuscateKey(parsed.rapidRouterKeyEnc) : (parsed.rapidRouterKey || '');
                 return {
                     provider: parsed.provider || 'openrouter',
                     openRouterKey: rawOpenRouter,
                     geminiKey: rawGemini,
+                    groqKey: rawGroq,
+                    rapidRouterKey: rawRapidRouter,
                     model: parsed.model || 'openrouter/free',
+                    providerModels: parsed.providerModels || {},
                     rememberKey: parsed.rememberKey ?? true,
                     speechRate: parsed.speechRate ?? 0.95
                 };
@@ -62,7 +73,10 @@ const App: FC = () => {
             provider: 'openrouter',
             openRouterKey: '',
             geminiKey: '',
+            groqKey: '',
+            rapidRouterKey: '',
             model: 'openrouter/free',
+            providerModels: {},
             rememberKey: true,
             speechRate: 0.95
         };
@@ -70,7 +84,7 @@ const App: FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Custom Hooks
-    const { isSpeaking, speak, speakAnnouncement, toggleSpeech, stopSpeech } = useSpeech({
+    const { isSpeaking, isNarrating, speak, speakAnnouncement, toggleSpeech, stopSpeech } = useSpeech({
         language,
         speechRate: userSettings.speechRate
     });
@@ -152,7 +166,13 @@ const App: FC = () => {
     // Initial Voice Welcome & Guidance
     useEffect(() => {
         const timer = setTimeout(() => {
-            const activeKey = userSettings.provider === 'gemini' ? userSettings.geminiKey : userSettings.openRouterKey;
+            const keyByProvider: Record<UserSettings['provider'], string | undefined> = {
+                gemini: userSettings.geminiKey,
+                openrouter: userSettings.openRouterKey,
+                groq: userSettings.groqKey,
+                rapidrouter: userSettings.rapidRouterKey,
+            };
+            const activeKey = keyByProvider[userSettings.provider];
             if (!activeKey?.trim()) {
                 speakAnnouncement("Welcome to VisionVoice. Please tap the Setup Key button at the top right to configure your AI key.");
             } else {
@@ -239,10 +259,19 @@ const App: FC = () => {
         speakAnnouncement("Camera ready.");
     }, [reset, stopSpeech, speakAnnouncement]);
 
-    const handleCopy = useCallback(() => {
-        if (output) {
-            navigator.clipboard.writeText(output);
+    const handleCopy = useCallback(async (): Promise<boolean> => {
+        if (!output) return false;
+        if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+            speakAnnouncement("Clipboard unavailable in this browser context.");
+            return false;
+        }
+        try {
+            await navigator.clipboard.writeText(output);
             speakAnnouncement("Text copied to clipboard.");
+            return true;
+        } catch {
+            speakAnnouncement("Unable to copy text to clipboard.");
+            return false;
         }
     }, [output, speakAnnouncement]);
 
@@ -277,7 +306,10 @@ const App: FC = () => {
                     provider: newSettings.provider,
                     openRouterKeyEnc: obfuscateKey(newSettings.openRouterKey),
                     geminiKeyEnc: obfuscateKey(newSettings.geminiKey),
+                    groqKeyEnc: obfuscateKey(newSettings.groqKey || ''),
+                    rapidRouterKeyEnc: obfuscateKey(newSettings.rapidRouterKey || ''),
                     model: newSettings.model,
+                    providerModels: newSettings.providerModels || {},
                     rememberKey: true,
                     speechRate: newSettings.speechRate ?? 0.95
                 };
@@ -287,7 +319,10 @@ const App: FC = () => {
                     provider: newSettings.provider,
                     openRouterKeyEnc: '',
                     geminiKeyEnc: '',
+                    groqKeyEnc: '',
+                    rapidRouterKeyEnc: '',
                     model: newSettings.model,
+                    providerModels: newSettings.providerModels || {},
                     rememberKey: false,
                     speechRate: newSettings.speechRate ?? 0.95
                 };
@@ -315,8 +350,23 @@ const App: FC = () => {
                 return;
             }
 
+            if (e.key === 'Escape') {
+                if (isSettingsOpen) {
+                    e.preventDefault();
+                    handleCloseSettings();
+                } else if (image) {
+                    e.preventDefault();
+                    handleReset();
+                }
+                return;
+            }
+
+            if (isSettingsOpen || Boolean(image)) {
+                return;
+            }
+
             if (e.code === 'Space' || e.code === 'Enter') {
-                if (activeTab === 'camera' && !isSettingsOpen && !image) {
+                if (activeTab === 'camera') {
                     e.preventDefault();
                     handleCaptureClick();
                 }
@@ -339,12 +389,6 @@ const App: FC = () => {
                 e.preventDefault();
                 if (isVoiceSupported) {
                     handleToggleVoice();
-                }
-            } else if (e.key === 'Escape') {
-                if (isSettingsOpen) {
-                    handleCloseSettings();
-                } else if (image) {
-                    handleReset();
                 }
             }
         };
@@ -378,7 +422,12 @@ const App: FC = () => {
             />
 
             {/* 2. MAIN ACCESSIBLE UI OVERLAY */}
-            <div className={`relative z-10 flex flex-col justify-between h-full transition-opacity duration-300 ${image ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div
+                id="camera-view"
+                aria-hidden={Boolean(image) || isSettingsOpen}
+                inert={Boolean(image) || isSettingsOpen ? true : undefined}
+                className={`relative z-10 flex flex-col justify-between h-full transition-opacity duration-300 ${image ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+            >
 
                 <Header
                     language={language}
@@ -423,7 +472,7 @@ const App: FC = () => {
                 error={error}
                 output={output}
                 task={task}
-                isSpeaking={isSpeaking}
+                isSpeaking={isNarrating}
                 onReset={handleReset}
                 onToggleSpeech={handleToggleSpeech}
                 onCopy={handleCopy}

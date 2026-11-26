@@ -67,7 +67,10 @@ export class ErrorBoundary extends Component<Props, State> {
           </p>
 
           <button
-            onClick={this.handleReload}
+            onClick={(e) => {
+              e.stopPropagation();
+              this.handleReload();
+            }}
             className="w-full max-w-xs py-4 px-6 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold rounded-2xl shadow-lg shadow-violet-600/30 transition-all active:scale-95 touch-manipulation text-lg"
             aria-label="Reload Application"
           >

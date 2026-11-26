@@ -1,18 +1,9 @@
 import { Task, AnalysisResult } from '../types';
-import { PROMPT_TEMPLATES, DEFAULT_OPENROUTER_CASCADE, AI_SYSTEM_INSTRUCTION } from '../constants';
-import { sanitizeKeyInput, sanitizeErrorMessage, cleanAIResponseText } from '../utils/security';
+import { DEFAULT_OPENROUTER_CASCADE } from '../constants';
+import { executeOpenAICompatibleVision } from './openAICompatibleService';
 
 /**
  * Generates an AI-powered description or text extraction using OpenRouter API.
- * 
- * @param base64Data - Pure base64 image data.
- * @param mimeType - MIME type of the image.
- * @param task - Current task (DESCRIBE or READ).
- * @param languageName - Name of the target language.
- * @param customApiKey - User-provided BYOK OpenRouter API key.
- * @param customModel - Optional user-selected model.
- * 
- * @returns A promise that resolves to an AnalysisResult.
  */
 export const generateOpenRouterDescription = async (
     base64Data: string,
@@ -20,105 +11,36 @@ export const generateOpenRouterDescription = async (
     task: Task,
     languageName: string,
     customApiKey?: string,
-    customModel?: string
+    customModel?: string,
+    signal?: AbortSignal
 ): Promise<AnalysisResult> => {
-    const apiKey = sanitizeKeyInput(customApiKey);
-    if (!apiKey) {
-        return {
-            success: false,
-            error: "No OpenRouter API key configured. Please click Settings (gear icon at top right) and enter your API key."
-        };
-    }
-
-    const fullPrompt = `${AI_SYSTEM_INSTRUCTION}\n\nTask: ${PROMPT_TEMPLATES[task]} Please provide the response in ${languageName}.`;
-    const imageUrl = `data:${mimeType};base64,${base64Data}`;
-    const referer = typeof window !== 'undefined' ? window.location.origin : 'https://visionvoice.app';
-
-    const models = customModel?.trim()
-        ? [customModel.trim(), ...DEFAULT_OPENROUTER_CASCADE.filter(m => m !== customModel.trim())]
-        : DEFAULT_OPENROUTER_CASCADE;
-
-    let lastError: Error | unknown = null;
-
-    for (const model of models) {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s network timeout
-
-        try {
-            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                    'HTTP-Referer': referer,
-                    'X-Title': 'VisionVoice'
-                },
-                body: JSON.stringify({
-                    model,
-                    max_tokens: 300,
-                    temperature: 0.2,
-                    messages: [
-                        {
-                            role: 'user',
-                            content: [
-                                { type: 'text', text: fullPrompt },
-                                { type: 'image_url', image_url: { url: imageUrl } }
-                            ]
-                        }
-                    ]
-                }),
-                signal: controller.signal
-            });
-
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                const rawMsg = errorData.error?.metadata?.raw 
-                    || errorData.error?.message 
-                    || `HTTP ${response.status} ${response.statusText}`;
-                const msg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg);
-
-                // Fail fast on auth or credit errors instead of hanging 120s trying subsequent models
-                if (response.status === 401 || response.status === 403 || response.status === 402) {
-                    return {
-                        success: false,
-                        error: sanitizeErrorMessage(`OpenRouter ${response.status}: ${msg}. Please check your API key and credits in Settings.`)
-                    };
+    return executeOpenAICompatibleVision(
+        base64Data,
+        mimeType,
+        task,
+        languageName,
+        customApiKey,
+        customModel,
+        {
+            providerLabel: 'OpenRouter',
+            endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+            defaultCascade: DEFAULT_OPENROUTER_CASCADE,
+            missingKeyError: "No OpenRouter API key configured. Please click Settings (gear icon at top right) and enter your API key.",
+            includeRefererHeaders: true,
+            maxTokens: 1024,
+            getExtraPayload: () => ({
+                reasoning: { effort: 'none', exclude: true }
+            }),
+            formatExhaustedError: (lastError) => {
+                if (!lastError) {
+                    return "An unknown error occurred while contacting OpenRouter service.";
                 }
-                throw new Error(msg);
+                if (lastError.message.toLowerCase().includes('provider returned error')) {
+                    return "The model provider returned an error. On OpenRouter, free models require enabling 'Allow free models that may train on inputs' in your OpenRouter Account Settings (openrouter.ai/settings/privacy), or switch to another model in Settings.";
+                }
+                return `${lastError.message}. Please check your network connection and OpenRouter API quota.`;
             }
-
-            const data = await response.json();
-            const rawText = data.choices?.[0]?.message?.content;
-            const textResult = cleanAIResponseText(rawText || '');
-
-            if (textResult) {
-                return {
-                    success: true,
-                    text: textResult
-                };
-            }
-        } catch (error) {
-            clearTimeout(timeoutId);
-            const isAbort = error instanceof Error && error.name === 'AbortError';
-            const errorMsg = isAbort ? `Model ${model} request timed out (30s limit).` : sanitizeErrorMessage(error);
-            console.warn(`OpenRouter request for '${model}' failed:`, errorMsg);
-            lastError = isAbort ? new Error(`Request timed out for ${model}`) : new Error(errorMsg);
-        }
-    }
-
-    let rawError = "An unknown error occurred while contacting OpenRouter service.";
-    if (lastError instanceof Error) {
-        if (lastError.message.toLowerCase().includes('provider returned error')) {
-            rawError = "The model provider returned an error. On OpenRouter, free models require enabling 'Allow free models that may train on inputs' in your OpenRouter Account Settings (openrouter.ai/settings/privacy), or switch to another model in Settings.";
-        } else {
-            rawError = `${lastError.message}. Please check your network connection and OpenRouter API quota.`;
-        }
-    }
-
-    return {
-        success: false,
-        error: sanitizeErrorMessage(rawError)
-    };
+        },
+        signal
+    );
 };

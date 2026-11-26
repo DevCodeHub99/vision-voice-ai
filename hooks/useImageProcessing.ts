@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { generateDescription } from '../services/aiService';
 import { Task, UserSettings } from '../types';
 import { LANGUAGES } from '../constants';
@@ -13,30 +13,24 @@ interface UseImageProcessingProps {
 
 /**
  * Custom hook to manage image processing state and AI service integration.
- * 
- * @param props - Configuration properties for image processing.
- * @param props.language - The current language code (e.g., 'en-US').
- * @param props.userSettings - Optional user configured BYOK API key and model.
- * @param props.onStartProcessing - Callback triggered when the AI analysis starts.
- * @param props.onSuccess - Callback triggered when the AI analysis succeeds, takes the result text.
- * @param props.onError - Callback triggered when the AI analysis fails, takes the error message.
- * 
- * @returns Object containing state and helper functions for image processing.
+ * Tracks request generations and aborts in-flight requests on reset or superseding captures.
  */
 export const useImageProcessing = ({ language, userSettings, onStartProcessing, onSuccess, onError }: UseImageProcessingProps) => {
     const [image, setImage] = useState<string | null>(null);
     const [output, setOutput] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const requestIdRef = useRef<number>(0);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
-    /**
-     * Captures an image (from camera or upload) and sends it for AI analysis.
-     * 
-     * @param imgData - The full data URL of the image.
-     * @param mimeType - The MIME type of the image.
-     * @param task - The current mode (DESCRIBE or READ).
-     */
-    const processImage = async (imgData: string, mimeType: string, task: Task) => {
+    const processImage = useCallback(async (imgData: string, mimeType: string, task: Task) => {
+        requestIdRef.current += 1;
+        const currentRequestId = requestIdRef.current;
+
+        abortControllerRef.current?.abort();
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         setImage(imgData);
         setOutput('');
         setError(null);
@@ -44,7 +38,7 @@ export const useImageProcessing = ({ language, userSettings, onStartProcessing, 
 
         onStartProcessing();
 
-        const base64Data = imgData.split(',')[1];
+        const base64Data = imgData.split(',')[1] || '';
         const selectedLanguage = LANGUAGES.find(l => l.code === language);
 
         try {
@@ -53,10 +47,16 @@ export const useImageProcessing = ({ language, userSettings, onStartProcessing, 
                 mimeType,
                 task,
                 selectedLanguage?.name || 'English',
-                userSettings
+                userSettings,
+                undefined,
+                controller.signal
             );
-            setIsLoading(false);
 
+            if (currentRequestId !== requestIdRef.current || controller.signal.aborted) {
+                return;
+            }
+
+            setIsLoading(false);
             if (result.success) {
                 setOutput(result.text);
                 setError(null);
@@ -66,18 +66,30 @@ export const useImageProcessing = ({ language, userSettings, onStartProcessing, 
                 onError(result.error);
             }
         } catch {
+            if (currentRequestId !== requestIdRef.current || controller.signal.aborted) {
+                return;
+            }
             const errorMsg = "Something went wrong during image processing.";
             setError(errorMsg);
             setIsLoading(false);
             onError(errorMsg);
         }
-    };
+    }, [language, userSettings, onStartProcessing, onSuccess, onError]);
 
     const reset = useCallback(() => {
+        requestIdRef.current += 1;
+        abortControllerRef.current?.abort();
+        abortControllerRef.current = null;
         setImage(null);
         setOutput('');
         setError(null);
         setIsLoading(false);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            abortControllerRef.current?.abort();
+        };
     }, []);
 
     return {
